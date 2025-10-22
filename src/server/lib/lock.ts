@@ -11,7 +11,7 @@ export async function acquireLock(
   ttlSeconds: number,
 ): Promise<LockHandle | null> {
   const token = crypto.randomUUID();
-  const result = await redis.set(key, token, { ex: ttlSeconds, nx: true });
+  const result = await redis().set(key, token, { ex: ttlSeconds, nx: true });
   if (result === "OK") {
     return { key, token };
   }
@@ -20,8 +20,8 @@ export async function acquireLock(
 
 export async function releaseLock(handle: LockHandle | null) {
   if (!handle) return;
-  const current = await redis.get<string | null>(handle.key);
+  const current = await redis().get<string | null>(handle.key);
   if (current === handle.token) {
-    await redis.del(handle.key);
+    await redis().del(handle.key);
   }
 }

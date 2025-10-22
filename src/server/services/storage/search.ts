@@ -1,8 +1,8 @@
-import { Search, type SearchIndex } from "@upstash/search";
+import { Search } from "@upstash/search";
 import { loadEnv } from "@/config/env";
 
 // Lazy initialization
-let searchIndex: SearchIndex<Record<string, unknown>, Record<string, unknown>> | null = null;
+let searchIndex: ReturnType<typeof Search.prototype.index<Record<string, unknown>, Record<string, unknown>>> | null = null;
 
 function getSearchIndex() {
   if (!searchIndex) {

@@ -15,6 +15,9 @@ function getRedis() {
   return redis;
 }
 
+// Export redis instance getter
+export { getRedis as redis };
+
 export async function setJson<T>(
   key: string,
   value: T,

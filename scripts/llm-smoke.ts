@@ -65,7 +65,6 @@ async function testWebSearchWithCitations() {
     },
     // Força o uso da tool de web search
     toolChoice: { type: "tool", toolName: "web_search" },
-    maxSteps: 5,
   });
 
   const text = response.text.trim();

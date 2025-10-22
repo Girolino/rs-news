@@ -95,7 +95,6 @@ export async function runDiscoveryStage(): Promise<DiscoveryNewsItem[]> {
           },
         }),
       },
-      maxSteps: 8,
     });
 
     const searchText = searchResult.text;

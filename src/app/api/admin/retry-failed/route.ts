@@ -20,7 +20,7 @@ async function listFailedRecords(): Promise<StoredNewsRecord[]> {
   let cursor = "0";
   const records: StoredNewsRecord[] = [];
   do {
-    const [nextCursor, keys] = (await redis.scan(cursor, {
+    const [nextCursor, keys] = (await redis().scan(cursor, {
       match: "sent_news:*",
       count: 100,
     })) as [string, string[]];
