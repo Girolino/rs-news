@@ -1,7 +1,11 @@
+import { loadEnv } from "@/config/env";
+
+const env = loadEnv();
+
 export const MODELS = {
-  DISCOVERY: "openai:gpt-4o-mini",
-  RERANK: "openai:gpt-4o-mini",
-  SUMMARIZE: "openai:gpt-4o",
+  DISCOVERY: env.AI_DISCOVERY_MODEL ?? "openai/gpt-5-mini",
+  RERANK: env.AI_RERANK_MODEL ?? "openai/gpt-5-mini",
+  SUMMARIZE: env.AI_SUMMARY_MODEL ?? "openai/gpt-5-mini",
 } as const;
 
 export type ModelKey = keyof typeof MODELS;

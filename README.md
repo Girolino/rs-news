@@ -40,6 +40,9 @@ Copie `.env.example` para `.env.local` e preencha os valores reais:
 ```
 AI_GATEWAY_API_KEY=
 AI_GATEWAY_BASE_URL=
+AI_DISCOVERY_MODEL=openai/gpt-5-mini
+AI_RERANK_MODEL=openai/gpt-5-mini
+AI_SUMMARY_MODEL=openai/gpt-5-mini
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 UPSTASH_SEARCH_REST_URL=
@@ -135,7 +138,7 @@ src/
 
 ```bash
 
-git add .; git commit -m 'v 0.01.00 chore: deploy original'; git push origin main
+git add .; git commit -m 'v 0.01.01 chore: model bump'; git push origin main
 git reset --hard; git clean -fd; git checkout dev-branch; git pull origin dev-branch
 git reset --hard c2366a1
 git push --force origin dev-branch

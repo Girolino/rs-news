@@ -6,7 +6,7 @@
     }
   ],
   "functions": {
-    "api/cron/news-agent/route.ts": {
+    "src/app/api/cron/news-agent/route.ts": {
       "maxDuration": 300
     }
   }
