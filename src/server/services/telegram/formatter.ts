@@ -17,7 +17,15 @@ export function buildTelegramMessage(news: StructuredNewsItem): string {
     .map((bullet) => `• ${escapeHtml(bullet)}`)
     .join("\n");
 
-  const sources = news.citations
+  // Deduplicate citations by URL
+  const uniqueCitations = news.citations.reduce((acc, citation) => {
+    if (!acc.some((c) => c.url === citation.url)) {
+      acc.push(citation);
+    }
+    return acc;
+  }, [] as typeof news.citations);
+
+  const sources = uniqueCitations
     .map(
       (citation) =>
         `• <a href="${escapeHtml(citation.url)}">${escapeHtml(citation.title)}</a>`,

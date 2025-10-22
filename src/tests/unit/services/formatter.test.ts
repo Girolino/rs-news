@@ -45,4 +45,36 @@ describe("telegram formatter", () => {
     expect(messageHtml).toContain("<a href=");
     expect(messageHtml).toContain("#PETR4");
   });
+
+  it("deduplicates citations by URL", () => {
+    const newsWithDuplicates: StructuredNewsItem = {
+      ...sample,
+      citations: [
+        {
+          url: "https://valor.globo.com/noticia",
+          title: "Valor Econômico",
+          quote: "Lucro líquido cresce 20%",
+          associatedBullet: 0,
+        },
+        {
+          url: "https://valor.globo.com/noticia", // Duplicate URL
+          title: "Valor Econômico",
+          quote: "Lucro líquido cresce 20%",
+          associatedBullet: 1,
+        },
+        {
+          url: "https://valor.globo.com/noticia", // Duplicate URL
+          title: "Valor Econômico",
+          quote: "Lucro líquido cresce 20%",
+          associatedBullet: 2,
+        },
+      ],
+    };
+
+    const html = buildTelegramMessage(newsWithDuplicates);
+
+    // Should only have ONE occurrence of the URL in the sources section
+    const matches = html.match(/https:\/\/valor\.globo\.com\/noticia/g);
+    expect(matches).toHaveLength(1);
+  });
 });
