@@ -5,9 +5,8 @@ import {
 } from "@/server/agent/orchestrator";
 import { logger } from "@/server/lib/logger";
 
-const env = loadEnv();
-
 function isAuthorized(request: Request): boolean {
+  const env = loadEnv();
   if (!env.CRON_SECRET) {
     return true;
   }

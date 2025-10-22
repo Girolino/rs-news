@@ -4,9 +4,8 @@ import { upsertDocument } from "@/server/services/storage/search";
 import { sendTelegramMessage, getDefaultChatId } from "@/server/services/telegram/client";
 import { storedNewsRecordSchema, type StoredNewsRecord } from "@/types/news";
 
-const env = loadEnv();
-
 function isAuthorized(request: Request): boolean {
+  const env = loadEnv();
   if (!env.CRON_SECRET) {
     return true;
   }
