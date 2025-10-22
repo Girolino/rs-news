@@ -134,12 +134,7 @@ src/
 
 ```bash
 
-git add .; git commit -m 'v 0.01.04 chore: ready for production deployment
-
-  - Fixed all build errors
-  - Tested Telegram integration
-  - Updated documentation
-  - All E2E tests passing (100%)'; git push origin main
+git add .; git commit -m 'v 0.01.05 chore: bugs'; git push origin main
 git reset --hard; git clean -fd; git checkout dev-branch; git pull origin dev-branch
 git reset --hard c2366a1
 git push --force origin dev-branch
