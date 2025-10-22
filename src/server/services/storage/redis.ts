@@ -1,27 +1,36 @@
 import { Redis } from "@upstash/redis";
 import { loadEnv } from "@/config/env";
 
-const env = loadEnv();
+// Lazy initialization
+let redis: Redis | null = null;
 
-export const redis = new Redis({
-  url: env.UPSTASH_REDIS_REST_URL,
-  token: env.UPSTASH_REDIS_REST_TOKEN,
-});
+function getRedis() {
+  if (!redis) {
+    const env = loadEnv();
+    redis = new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    });
+  }
+  return redis;
+}
 
 export async function setJson<T>(
   key: string,
   value: T,
   options?: { ttlSeconds?: number },
 ) {
+  const client = getRedis();
   const serialized = JSON.stringify(value);
-  await redis.set(key, serialized);
+  await client.set(key, serialized);
   if (options?.ttlSeconds) {
-    await redis.expire(key, options.ttlSeconds);
+    await client.expire(key, options.ttlSeconds);
   }
 }
 
 export async function getJson<T>(key: string): Promise<T | null> {
-  const value = await redis.get<string | null>(key);
+  const client = getRedis();
+  const value = await client.get<string | null>(key);
   if (!value) {
     return null;
   }
@@ -34,5 +43,6 @@ export async function getJson<T>(key: string): Promise<T | null> {
 }
 
 export async function del(key: string) {
-  await redis.del(key);
+  const client = getRedis();
+  await client.del(key);
 }

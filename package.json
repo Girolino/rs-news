@@ -9,7 +9,10 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest watch",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "smoke:ai": "node --import=tsx --import=dotenv/config scripts/llm-smoke.ts",
+    "test:discovery": "node --import=tsx --import=dotenv/config scripts/test-discovery.ts",
+    "test:e2e": "node --import=tsx --import=dotenv/config scripts/smoke-e2e.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.53",
@@ -47,6 +50,7 @@
     "msw": "^2.11.6",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
     "typescript": "^5",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.0.1"

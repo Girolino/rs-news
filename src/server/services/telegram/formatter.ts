@@ -1,4 +1,4 @@
-import { FormattedNewsItem } from "@/types/news";
+import { StructuredNewsItem } from "@/types/news";
 
 const HTML_ESCAPE_MAP: Record<string, string> = {
   "&": "&amp;",
@@ -12,7 +12,7 @@ export function escapeHtml(input: string): string {
   return input.replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char]);
 }
 
-export function buildTelegramMessage(news: FormattedNewsItem): string {
+export function buildTelegramMessage(news: StructuredNewsItem): string {
   const bullets = news.bullets
     .map((bullet) => `• ${escapeHtml(bullet)}`)
     .join("\n");

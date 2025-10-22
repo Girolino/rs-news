@@ -17,13 +17,13 @@ function isAuthorized(request: Request): boolean {
 }
 
 async function listFailedRecords(): Promise<StoredNewsRecord[]> {
-  let cursor: string | number = "0";
+  let cursor = "0";
   const records: StoredNewsRecord[] = [];
   do {
-    const [nextCursor, keys] = await redis.scan(cursor, {
+    const [nextCursor, keys] = (await redis.scan(cursor, {
       match: "sent_news:*",
       count: 100,
-    });
+    })) as [string, string[]];
     cursor = nextCursor;
     for (const key of keys) {
       const record = await getJson<StoredNewsRecord>(key);
@@ -39,6 +39,8 @@ async function retryRecord(record: StoredNewsRecord): Promise<StoredNewsRecord> 
   const response = await sendTelegramMessage({
     chat_id: getDefaultChatId(),
     text: record.messageHtml,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
   });
   if (!response.ok || !response.result) {
     return record;

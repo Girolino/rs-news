@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { buildSummarizePrompt } from "@/server/services/ai/prompts";
 import { runGenerateObject } from "@/server/services/ai/gateway";
-import { getModelName } from "@/server/services/ai/models";
+import { getModelName } from "@/lib/ai/models";
 import {
   structuredNewsItemSchema,
   type RerankedNewsItem,
@@ -42,7 +42,7 @@ export async function runSummarizeStage(
     try {
       const prompt = buildSummarizePrompt(item);
       const response = await runGenerateObject(
-        getModelName("SUMMARIZE"),
+        getModelName("summarize"),
         summarizeResponseSchema,
         prompt,
       );

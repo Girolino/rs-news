@@ -27,6 +27,8 @@ export async function runSendStage(
       const response = await sendTelegramMessage({
         chat_id: getDefaultChatId(),
         text: item.messageHtml,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
       });
       if (!response.ok || !response.result) {
         throw new Error(response.description ?? "Unknown Telegram response");

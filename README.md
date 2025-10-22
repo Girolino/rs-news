@@ -6,7 +6,7 @@ Pipeline automatizado que descobre, filtra, sumariza e envia notícias de econom
 
 - **Framework**: Next.js 16 (App Router, runtime Node)
 - **Orquestração**: `src/server/agent/orchestrator.ts` coordena os estágios (descoberta → filtro → rerank → dedup → sumarização → formatação → envio → persistência)
-- **LLM**: Vercel AI Gateway + OpenAI (`ai` SDK)
+- **LLM**: OpenAI (`ai` SDK com createOpenAI)
 - **Storage**: Upstash Redis (locks e persistência) + Upstash Search (deduplicação e indexação)
 - **Mensageria**: Telegram Bot API (HTML sanitized)
 - **Observabilidade**: logs estruturados em `logger.ts` + persistência do último run em Redis (`agent:news:last_run`)
@@ -29,7 +29,7 @@ Vercel Cron ──► Orchestrator
 ## Pré-requisitos
 
 - Node.js ≥ 22 (vitest 4 requer engines atualizadas)
-- Conta no Vercel com AI Gateway configurado
+- Conta na OpenAI com acesso aos modelos `gpt-5-mini`
 - Instâncias Upstash Redis e Upstash Search ativas
 - Bot do Telegram com token e chat ID
 
@@ -38,11 +38,7 @@ Vercel Cron ──► Orchestrator
 Copie `.env.example` para `.env.local` e preencha os valores reais:
 
 ```
-AI_GATEWAY_API_KEY=
-AI_GATEWAY_BASE_URL=
-AI_DISCOVERY_MODEL=openai/gpt-5-mini
-AI_RERANK_MODEL=openai/gpt-5-mini
-AI_SUMMARY_MODEL=openai/gpt-5-mini
+OPENAI_API_KEY=
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 UPSTASH_SEARCH_REST_URL=
@@ -89,7 +85,7 @@ Dashboard simplificado disponível em `/` com referência rápida dos endpoints.
 ## Deploy (Vercel)
 
 1. Configure as variáveis de ambiente no dashboard do Vercel.
-2. Garanta que o AI Gateway esteja apontando para o modelo desejado (`openai:gpt-4o` / `openai:gpt-4o-mini`).
+2. Garanta que a chave `OPENAI_API_KEY` esteja configurada e com acesso ao modelo desejado (ex.: `gpt-5-mini`).
 3. `vercel.json` inclui o cron `0 * * * *` e `maxDuration` de 300s para o endpoint.
 4. Após deploy, teste manualmente:
    - `curl https://<deploy>/api/cron/news-agent -H "Authorization: Bearer $CRON_SECRET"`
@@ -131,14 +127,14 @@ src/
 
 ## Próximos passos sugeridos
 
-- Ajustar prompts de descoberta para integrar uma ferramenta de web search real (caso disponível via AI Gateway).
+- Ajustar prompts de descoberta para integrar uma ferramenta de web search real, caso disponha de provedor com essa capacidade.
 - Adicionar monitoramento/alertas (ex: enviar log de falha para canal admin).
 - Implementar dashboard administrativo com visualização dos últimos envios (reutilizando dados do Redis/Search).
 
 
 ```bash
 
-git add .; git commit -m 'v 0.01.01 chore: model bump'; git push origin main
+git add .; git commit -m 'v 0.01.02 fix: api error'; git push origin main
 git reset --hard; git clean -fd; git checkout dev-branch; git pull origin dev-branch
 git reset --hard c2366a1
 git push --force origin dev-branch

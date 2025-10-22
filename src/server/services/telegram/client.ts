@@ -7,20 +7,23 @@ import {
   type TelegramSendMessageResponse,
 } from "@/types/telegram";
 
-const env = loadEnv();
+// Lazy initialization
+let TELEGRAM_BASE_URL: string | null = null;
 
-const TELEGRAM_BASE_URL = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}`;
+function getTelegramBaseUrl() {
+  if (!TELEGRAM_BASE_URL) {
+    const env = loadEnv();
+    TELEGRAM_BASE_URL = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}`;
+  }
+  return TELEGRAM_BASE_URL;
+}
 
 async function sendMessageOnce(
   payload: TelegramSendMessagePayload,
 ): Promise<TelegramSendMessageResponse> {
-  const body = telegramSendMessagePayloadSchema.parse({
-    parse_mode: "HTML",
-    disable_web_page_preview: true,
-    ...payload,
-  });
+  const body = telegramSendMessagePayloadSchema.parse(payload);
 
-  const response = await fetch(`${TELEGRAM_BASE_URL}/sendMessage`, {
+  const response = await fetch(`${getTelegramBaseUrl()}/sendMessage`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -53,5 +56,6 @@ export async function sendTelegramMessage(
 }
 
 export function getDefaultChatId(): string | number {
+  const env = loadEnv();
   return env.TELEGRAM_CHAT_ID;
 }

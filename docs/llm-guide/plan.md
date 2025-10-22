@@ -1,695 +1,442 @@
-0) Scope, principles, and success criteria
-
-Goal: A production‑grade analytics portal for Brazilian financial institutions, improving on BancoData in clarity, auditability, comparability, and UX, using only public data (IF.Data via OData/Olinda; Balancetes/COSIF; Relação de Instituições).
-
-Non‑negotiables
-
-Data lineage (every number traceable to a public source).
-
-Reproducibility (raw downloads archived; transformations deterministic).
-
-Consistency (clear separation of monthly COSIF vs. quarterly IF.Data).
-
-Convex as the sole source of truth for structured data (time series, rankings, metadata).
-
-Vercel Blob for large public artifacts (raw ZIP/CSV snapshots; user exports).
-
-No scraping; zero private endpoints.
-
-Definition of Done (global)
-
-/relatorio/[slug] and /relatorio/[slug]/ifdata/[id] render reliable data for a representative sample of institutions and indicators (≥ 24 months COSIF; ≥ 16 quarters IF.Data).
-
-Rankings by type of IF; deltas and statistics; drill‑down COSIF level‑3; export CSV.
-
-Cron runs autonomous (Vercel Cron → Convex), with logs, heartbeats, and error capture inside Convex (no external service).
-
-E2E tests pass in CI.
-
-“About/Fontes” page shows license and sources.
-
-1) System architecture (high level)
-
-UI: Next.js 16 (App Router + RSC), shadcn/ui + Tailwind for widgets; Recharts (via shadcn/ui) for timeseries and charts.
-API: tRPC Route Handler (fetchRequestHandler) for typed server contracts.
-Data: Convex (collections, queries/mutations/actions, cron helpers).
-Artifacts: Vercel Blob (public raw files and user exports).
-Scheduling: Vercel Cron → Next Route Handler → Convex HTTP Action.
-Observability: Vercel logs + Convex tables (errors, job_runs, dead_letters, metrics_daily) and JSON logging.
-Testing: Vitest (unit/integration), Playwright (E2E automated only).
-
-2) Repository layout
-bancodata-plus/
-  app/
-    layout.tsx
-    page.tsx
-    relatorio/
-      [slug]/
-        page.tsx
-        ifdata/[id]/page.tsx
-    api/
-      trpc/[trpc]/route.ts          // tRPC handler
-      cron/
-        ifdata/route.ts             // Vercel Cron -> Convex action
-        cosif/route.ts              // Vercel Cron -> Convex action
-        compute/route.ts            // Vercel Cron -> Convex action
-      revalidate/route.ts           // POST revalidateTag helper
-      health/route.ts               // GET health snapshot (protected by header)
-  components/
-    charts/TimeSeries.tsx
-    ui/ (shadcn components copied-in)
-    KpiCard.tsx
-    RankingTable.tsx
-    CosifTree.tsx
-    SourceFootnote.tsx
-    ComparePicker.tsx
-    EmptyState.tsx
-  server/
-    trpc/
-      context.ts
-      router/
-        index.ts
-        institutions.ts
-        indicators.ts
-        series.ts
-        rankings.ts
-        compare.ts
-        search.ts
-    clients/
-      odata.ts       // OData client (retry/backoff, pagination)
-      cosif.ts       // download & parse ZIP/CSV
-      blob.ts        // tiny wrapper for Blob put/list/head
-    math/
-      stats.ts
-      ranking.ts
-      resampling.ts
-    logging/
-      logger.ts
-      handleError.ts
-  convex/
-    schema.ts
-    ingest_ifdata.ts
-    ingest_cosif.ts
-    institutions.ts
-    compute.ts
-    http.ts            // HTTP Actions (convex.site) — optional if you prefer Next route proxy
-    cron.ts            // optional housekeeping
-  scripts/
-    bootstrap_indicators.ts // seed IF.Data reports & COSIF dictionary (level 3)
-    backfill_slugs.ts
-  public/
-  styles/
-  tests/
-    unit/
-    integration/
-    e2e/ (Playwright)
-  next.config.js
-  vercel.json
-  package.json
-  .env.local           // already contains Convex & Blob vars
-  README.md
+Abaixo vai minha avaliação crítica do seu plano e, em seguida, o plano completo reescrito com melhorias — especialmente no agentic flow e no uso do Vercel AI‑Gateway. Mantive PT‑BR, evitei Sentry conforme solicitado e respeitei as demais premissas (sem RSS/API de notícias dedicada e sem Postgres).
 
-3) Environment & configuration (assumptions for LLM)
+Avaliação crítica (curta e objetiva)
 
-.env.local already contains all keys used below. LLMs must read from process.env and never ask humans.
+Acertos
 
-Expected keys (names are examples; adjust only if the repo template differs):
+Arquitetura enxuta: Next.js + Vercel Cron + Upstash (Redis/Vector) + Telegram.
 
-Convex: CONVEX_DEPLOYMENT, CONVEX_DEPLOY_KEY (if needed for HTTP API), CONVEX_SITE_URL or CONVEX_URL.
+Deduplicação semântica no Upstash Vector.
 
-Blob: BLOB_READ_WRITE_TOKEN, BLOB_BASE_URL.
+Estruturação com Zod e formatação final para Telegram.
 
-Data sources:
+Métricas e logging estruturado.
 
-IFDATA_BASE (OData base URL for IF.Data).
+Oportunidades de melhoria
 
-INSTITUTIONS_BASE (OData base URL for Relação de Instituições).
+Busca/Fontes — “web search nativa do LLM” não é garantia de cobertura/qualidade. Precisamos de uma tool determinística para search/fetch (ex.: Tavily/Bing SerpAPI/Google Programmable Search) ou um crawler de whitelist (BCB, CVM, B3, RI das companhias, etc.). O LLM não deve “inventar” citações.
 
-COSIF_BASE (root or pattern for Balancetes/COSIF ZIPs).
+Agentic flow — Criar um pipeline multiestágios com papéis claros: Planner → Coletor → Validador de fontes → Agrupador/Cluster → Ranker → Redator → Checador factual → Editor de estilo. Adicionar cheque temporal (timestamp e TZ Brasil) e verificação cruzada de claims.
 
-LLMs: never echo secrets; never log them. Only interpolate in requests.
+Citações — Extraí-las de forma determinística (da camada de coleta), e só então passar ao LLM para redação, nunca o inverso.
 
-4) Data modeling (Convex)
+Deduplicação — Complementar o vetor com uma fingerprint lexical (MinHash/SimHash) para reduzir falsos positivos/negativos; parametrização por janela temporal.
 
-Tables & indexes (convex/schema.ts)
+Embeddings — Corrigir dimensão: text-embedding-3-small é 1536 dimensões (não 768). Prever reindex caso troque o modelo.
 
-institutions — { cnpj, name, tradeName?, type?, congCode?, slug, openedAt?, createdAt, updatedAt }
-Indexes: by_slug, by_cnpj, by_type.
+AI-Gateway — Centralizar routing/fallback/observabilidade no Vercel AI‑Gateway e definir política de modelo por tarefa (ex.: modelos leves para classificação, frontier para redação/checagem).
 
-indicators — { source: 'IFDATA'|'COSIF', sourceId?, code, name, unit?, freq:'M'|'Q', group?, cadoc?, cosifLevel?, meta?, createdAt, updatedAt }
-Indexes: by_code, by_source, by_group.
+Confiabilidade — Lock de concorrência via Redis (SETNX + TTL) para garantir 1 execução/hora; idempotency key por notícia; dead‑letter para falhas de envio.
 
-series — { institutionId, indicatorId, refDate:ISO, periodKey:'YYYY-MM'|'YYYY-Qn', consolidation:'INSTITUICAO'|'CONGLOMERADO', value:number, sourceDoc?, isEstimated?, createdAt }
-Indexes: by_inst_ind_period, by_indicator_period, by_inst_period.
+Segurança — Mesmo sem usuário, há risco de injection via páginas web. Sanitizar HTML, limitar tools a domínios allowlist, ignorar instruções embutidas no conteúdo coletado.
 
-rankings — { indicatorId, periodKey, instType, institutionId, value, rank, pct?, createdAt }
-Indexes: by_ind_period_type_rank, by_ind_period_type_inst.
+Cron vs QStash — Para 1 job/hora <30s, Vercel Cron basta. QStash vira útil para fan‑out, retry robusto, delay queues e “replay” — deixar como opcional/etapa futura.
 
-lineage — { source:'IFDATA'|'COSIF', sourceUrl, blobKey?, blobUrl?, sha256, bytes, periodKey, note?, fetchedAt, parseVersion }
-Indexes: by_source_period.
+Formatação Telegram — Usar parse_mode=HTML para reduzir problemas de escape; inline keyboard para “Fontes / Ver similares”; disable_web_page_preview configurável.
 
-Telemetry:
+Plano de Implementação (revisado e passo a passo)
+1) Visão e Requisitos
 
-errors — { ts, source:'cron'|'api'|'ui'|'action', code?, message, stack?, ctx? }
+Objetivo: feed horário (ou configurável) de notícias de economia e mercado Brasil (PT‑BR), com alta precisão, citações confiáveis e baixo ruído.
 
-job_runs — { job:'ifdata'|'cosif'|'compute', runId, startedAt, finishedAt?, status:'ok'|'err', errorId? }
+Canais: Telegram (canal privado inicialmente).
 
-dead_letters — { kind, payloadRef, firstSeen, lastTried, tries, lastError? }
+Sem Postgres/Sentry/RSS/API de notícias proprietária.
 
-metrics_daily — { day:'YYYY-MM-DD', ingestRows, ingestBytes, computeMs, failures }
+TZ e datas: usar America/Sao_Paulo. Todas as datas apresentadas ao usuário final devem ser normalizadas.
 
-(Optional) search_aliases — { institutionId, alias } for full‑text autocomplete.
+2) Princípios de Projeto
 
-Period keys
+Retrieve‑then‑generate: primeiro coletar e validar fontes; depois o LLM resume/redige.
 
-Monthly (COSIF): YYYY-MM.
+Determinismo nas citações: o LLM nunca inventa links; apenas recebe contexto com URLs verificadas.
 
-Quarterly (IF.Data): YYYY-Q1|Q2|Q3|Q4.
+Agentic flow multiestágios com guardrails (ver §5).
 
-5) Ingestion pipelines
-5.1 IF.Data (quarterly, OData)
+Idempotência e locks para evitar duplicidade de envios.
 
-Discovery: query ListaDeRelatorio → seed indicators with { source:'IFDATA', sourceId:IdRelatorio, unit, freq:'Q', group:'IFData' }.
+Observabilidade sem Sentry: structured logs + métricas no próprio Redis/Log Drains da Vercel.
 
-Values collection: for each selected report & institution type, fetch IfDataValores across the target window (e.g., last 16–24 quarters). Handle OData pagination (@odata.nextLink) and retry/backoff.
+3) Stack Tecnológica
 
-Persist: upsert into series and add a lineage record per batch with SHA‑256 and optional Blob archival for JSON payloads.
+Framework: Next.js (App Router) + TypeScript.
 
-Consolidation: keep the consolidation level provided by the report (document in sourceDoc).
+AI Orquestração: Vercel AI SDK (tools/structured output/stream) via Vercel AI‑Gateway (agnóstico e com fallback/metrics).
 
-Convex actions/mutations (convex/ingest_ifdata.ts):
+LLMs (via Gateway; política por tarefa):
 
-refresh({ windowQuarters }) — orchestrates discovery (optional), fetch, persist.
+Classificação/extração/score: modelo cost‑effective (ex.: GPT‑4o‑mini/Claude Haiku/LLama 3.x 8B via provedor compatível).
 
-upsertSeriesBatch(records) — single mutation for batch upsert (idempotent key = institutionId|indicatorId|periodKey|consolidation).
+Redação/checagem: modelo frontier (ex.: GPT‑4o/Claude Sonnet).
 
-recordLineage(...) — save lineage + (optionally) upload raw to Blob.
+Embeddings: text-embedding-3-small (1536 dims).
 
-5.2 COSIF (monthly/trimestral, CSV/ZIP)
+Busca e Coleta:
 
-Download: construct URLs for aggregated or individualized ZIPs; HEAD check; download; unzip; parse CSV (likely ; delimiter, latin1).
+Opção A (recomendada): API de busca (Tavily/Serper/Bing) como tool do agente.
 
-Normalize: validate columns (YYYYMM, CNPJ, CADOC (4010/4040), Account, AccountName, Balance).
+Opção B (sem buscador): crawler leve com allowlist (BCB, CVM, B3, Tesouro, ANEEL/ANP/ANATEL, RI das companhias, Agência Brasil, etc.). Scrapers simples (HTML → texto) e rate limit.
 
-Dictionary: maintain a COSIF level‑3 dictionary → indicator mapping in indicators.meta (seeded by scripts/bootstrap_indicators.ts).
+Você pode começar com A e adicionar B para fontes regulatórias (baixa fricção).
 
-Aggregate: sum balances per {CNPJ, indicatorCode, period}; persist to series (freq:'M', consolidation from CADOC).
+Storage: Upstash Redis (KV/JSON, locks, idempotência) + Upstash Vector (HNSW).
 
-Lineage: record hash, size, and Blob pointer for each raw ZIP (and optional normalized CSV).
+Mensageria: Telegram Bot API.
 
-Convex code (convex/ingest_cosif.ts):
+Deploy/Jobs: Vercel + Vercel Cron (início) — QStash opcional.
 
-refresh({ yyyymmFrom, yyyymmTo, doc:'4010'|'4040', tipo }) — windowed fetch.
+Schema/validação: Zod.
 
-parseZipToRecords(zipBuffer) — server/clients/cosif.ts.
+4) Dados e Estruturas
+Redis (KV/JSON)
 
-mapAccountsToIndicators(records, dictionary) — group by indicatorCode.
+sent_news:{newsId} → payload completo (permanente).
 
-upsertSeriesBatch(...) and recordLineage(...) as above.
+sent_news_ids (SET) → todos IDs enviados (permanente).
 
-6) Institution metadata
+search_cache:{queryHash} → cache de SERP/fetch (TTL 7d).
 
-Fetch from Relação de Instituições OData; upsert into institutions (cnpj, name, tradeName, type, congCode, openedAt).
+run_lock → lock de execução (SETNX + TTL 15min).
 
-Generate unique slug from tradeName || name.
+idempotency:{fingerprint} → de‑dup de envio curto prazo (TTL 48h).
 
-Convex code (convex/institutions.ts):
+last_run_metadata → resumo da última execução.
 
-sync() (idempotent) + ensureSlugUniqueness.
+dead_letter:{timestamp} → lotes que falharam no envio.
 
-7) Computations (derivatives & rankings)
+Vector (Upstash Vector)
 
-Math library (server/math)
+Dimensão: 1536 (embedding text-embedding-3-small).
 
-delta(a,b) -> {abs, pct|null}
+Metadata: title, summary, url, domain, companies[], categories[], timestamp, relevanceScore, telegramMessageId, fingerprint.
 
-median(xs), stdev(xs)
+Índice: cosine. topK=5.
 
-rollupYear(monthlySeries), rollupSemester(monthlySeries)
+Fingerprint (lexical)
 
-rankWithinType(values[]) with average‑rank ties and percentiles
+SimHash/MinHash da headline + lead + url normalizada para de‑dup rápido.
 
-Convex action (convex/compute.ts)
+Armazenar junto do registro em Redis e como metadado no Vector.
 
-rebuild({ periods }) — materialize rankings for each indicatorId x periodKey x instType.
+5) Agentic Flow (fases e responsabilidades)
 
-After compute, POST to /api/revalidate with tags for affected institutions and indicators.
+Planner
 
-8) APIs (tRPC)
+Gera consultas por tema (macro, política monetária, corporativo B3, setorial, ratings, operações estruturadas, regulatório).
 
-Route: app/api/trpc/[trpc]/route.ts with fetchRequestHandler.
+Prioriza domínios allowlist e aplica filtros temporais (≤ 2–3h).
 
-Routers
+Saída: lista de queries + targets (domínios/URLs) + pesos.
 
-institutions: bySlug(slug), list({ q?, type?, limit? }).
+Coletor (Search & Fetch Tool)
 
-indicators: getByCode(code), listByGroup(group).
+Executa search API (ou crawler allowlist).
 
-series: forInstitution({ slug, indicatorCode, from?, to? }), latestSnapshot({ slug }).
+Normaliza URLs, resolve redirecionamentos, extrai timestamp do artigo (ou heurística).
 
-rankings: position({ slug, indicatorCode, periodKey }), table({ indicatorCode, periodKey, instType, top? }).
+Faz fetch do HTML e converte para texto limpo (strip scripts/iframes).
 
-compare: matrix({ slugs[], indicatorCodes[], period }).
+Nunca passa HTML bruto ao LLM.
 
-search: autocomplete(q) (Convex full‑text optionally).
+Validador de Fontes
 
-Validation: zod on all procedures.
-Pagination: deterministic cursors for tables.
+Verifica domínio contra allowlist; avalia autoridade da fonte.
 
-9) UI/UX (Next 16 + shadcn/ui)
+Rejeita itens sem URL canônica ou com timestamp inválido/antigo.
 
-/relatorio/[slug]
+Mantém apenas itens com content length mínimo.
 
-Header: name, CNPJ (masked), type, openedAt.
+Agrupador/Clustering (story‑level)
 
-Sections: Patrimônio (COSIF M), Resultado (COSIF M), Capital/Risco (IF.Data Q).
+Cluster semântico (Vector) + fingerprint lexical para unir duplicatas cross‑fonte.
 
-Cards: current value, Δ QoQ/YoY or MoM/YoY, last period date.
+Seleciona 1 representante por cluster (maior autoridade + mais atual).
 
-Charts: TimeSeries with period selector (24/60 months; 16/20 quarters).
+Extração/Normalização
 
-CosifTree: drill‑down level‑3.
+LLM leve para extrair: title, lead, entidades (empresas/tickers), tipo de evento (guideline, M&A, rating, RI, CVM, macro), categorias.
 
-Ranking: position & percentile among same IF type.
+Resolve empresas → tickers B3 via dicionário em Redis (sinônimos, nomes curtos e razão social). Fallback semântico p/ casos ambíguos.
 
-SourceFootnote per block (IF.Data, COSIF, Institutions).
+Scoring e Ranking
 
-Export: CSV for the currently visible series/table (generated server‑side, streamed to Blob, return public URL).
+Score final = f(autoridade da fonte, frescor, impacto (tipo de evento), presença de empresas listadas, novidade vs histórico, volume de cobertura cross‑fonte).
 
-/relatorio/[slug]/ifdata/[id]
+Limite mínimo (ex.: ≥7/10) e top‑N por execução (ex.: 3–8 itens).
 
-Resolve id to Indicator.sourceId (IF.Data).
+Redação (Draft)
 
-Q‑series, metadata (unit, consolidation), ranking, statistics.
+Modelo frontier recebe apenas o texto limpo + metadados + URLs do item vencedor do cluster.
 
-Compare
+Pede resumo objetivo PT‑BR, título claro e 3–5 bullets de impacto (sem opinião, sem adjetivos excessivos), com timezone BR.
 
-Multi‑IF, multi‑indicator with normalized units; mini‑sparklines and correlation hint.
+Checagem Factual Cruzada
 
-shadcn/ui components to scaffold now:
-Button, Input, Select, Tabs, Dialog, Sheet, DropdownMenu, Tooltip, Skeleton, Table (with TanStack), Command (for global search), Toast, Chart (Recharts wrapper for LineChart, BarChart, AreaChart).
+LLM revalida cada bullet contra o conteúdo bruto e lista de URLs do cluster. Qualquer claim sem ancoragem → reescrever/omitir.
 
-10) Caching & revalidation (Next 16)
+Adiciona carimbo de data/hora (BRT/BRST) na saída.
 
-All server data fetchers attach tags:
+Editor de Estilo / Formatação Telegram
 
-institution:{slug} and indicator:{code}.
+Gera mensagem em HTML com: título, bullets, empresas/tickers, timestamp, [Fontes] (1–3 links), hashtags.
 
-app/api/revalidate/route.ts exposes POST to call revalidateTag([...tags]).
+Inline keyboard: [Fontes], [Similares] (link para página interna opcional).
 
-Convex actions call this endpoint on successful ingest/compute for the touched keys.
+Envio
 
-11) Artifacts with Vercel Blob
+sendMessage com parse_mode=HTML.
 
-Use Blob for
+disable_web_page_preview: configurável por categoria (ex.: ligar para notas de RI).
 
-Raw: IF.Data payload dumps (optional), COSIF ZIPs.
+Retry exponencial (até 5).
 
-Normalized: NDJSON/CSV per month/segment (optional).
+Persistência
 
-Exports: CSVs users download from charts/tables.
+Redis: objeto completo + messageId.
 
-Key structure
+Vector: upsert de embedding + metadados.
 
-raw/cosif/{YYYY}/{YYYY-MM}/{cadoc}/{tipo}/{file}.zip
-raw/ifdata/{YYYY-Qn}/{reportId}.json
-norm/cosif/{YYYY}/{YYYY-MM}/{indicator}.csv
-exports/{slug}/{indicator}/{periodKey}.csv
+Registrar fingerprint em idempotency:*.
 
+Telemetria & Métricas
 
-Convex lineage stores: { source, sourceUrl, blobKey, blobUrl, sha256, bytes, periodKey, fetchedAt }.
+Contagens: buscadas/validadas/clusterizadas/enviadas/ignoradas.
 
-LLM rule: never store time‑series in Blob; Convex remains the source of truth.
+Custos (AI‑Gateway), latência por fase, taxa de duplicatas, precisão estimada (auditoria manual).
 
-12) Observability without external services
+6) Cron vs QStash
 
-Logger (server/logging/logger.ts): JSON one‑line per event {ts, level, scope, msg, ctx?, err?}.
+Fase 1 (recomendada): Vercel Cron (ex.: 0 * * * *). Coloque lock Redis (SETNX) para impedir concorrência e use idempotency key por batch.
 
-Error capture: central handleError(e, ctx) logs + inserts into errors via Convex mutation.
+Quando adotar QStash:
 
-Job runs: insert on start, update on finish; status ok|err; link errorId if failed.
+Precisa de retries automáticos fora da janela do Cron.
 
-Health: GET /api/health (protected by header) returning last run timestamps per job.
+Fan‑out de tarefas (ex.: enviar para múltiplos canais/grupos em paralelo).
 
-(Optional) Web Vitals endpoint that upserts into metrics_daily.
+Delay queues e dead‑letter gerenciado.
 
-13) Scheduling (Vercel Cron → Convex)
+Conclusão: comece com Vercel Cron; QStash entra como evolução.
 
-vercel.json
+7) Segurança e Conformidade
 
-{
-  "crons": [
-    { "path": "/api/cron/ifdata",  "schedule": "0 4 * * *" },
-    { "path": "/api/cron/cosif",   "schedule": "0 3 * * *" },
-    { "path": "/api/cron/compute", "schedule": "0 5 * * *" }
-  ]
-}
+Allowlist estrita de domínios (ex.: BCB, CVM, B3, Tesouro, RI de companhias, Agência Brasil, Valor*, InfoMoney, Estadão Economia, Folha Mercado, O Globo Economia, Brazil Journal, agências de rating). (*Note: lidar com paywalls; quando houver, use título/lead público e a fonte oficial de RI/regulador como verificação.)
 
+Sanitização: remover scripts/estilos/links de rastreamento; aceitar apenas <b><i><u><a><br><code> no HTML final.
 
-Each cron Route Handler
+Anti‑injection: o tooling nunca executa instruções do conteúdo coletado; prompts não incorporam “instruções” vindas da web.
 
-Validate User-Agent contains vercel-cron.
+Disclaimer: inserir nota padrão “Conteúdo informativo; não constitui recomendação de investimento.”
 
-Generate jobRunId; write job_runs.start.
+8) Formato da Mensagem (Telegram)
 
-Call Convex HTTP Action (/api/run/... or convex.site/...).
+Título (negrito via <b>), timestamp (BRT/BRST).
 
-On success/failure: write job_runs.finish and, if failure, write errors.
+3–5 bullets objetivos (cada um uma evidência).
 
-On success: POST /api/revalidate with relevant tags.
+Empresas/Tickers: PETR4, VALE3, ...
 
-14) Testing strategy (no extra services)
+Fontes: até 3, com nomes de domínio (ex.: [CVM], [RI Petrobras], [B3]).
 
-Unit (Vitest)
+Hashtags: 3–6 (setor, tema, empresa).
 
-OData client pagination/retry.
+Ex.:
 
-COSIF CSV parser (delimiter/encoding).
+<b>Petrobras anuncia capex revisado 2025–2029</b> — 22 out 2025, 10:07 BRT
+• Diretriz de investimento sobe X% vs. plano anterior; foco em E&P pré-sal.
+• Guidance de produção mantido; janela de desinvestimentos revista.
+• Conselho aprova dividendos intermediários condicionados a alavancagem.
+Empresas: PETR4, PETR3
+Fontes: [RI Petrobras](https://...), [CVM](https://...)
+#petr4 #oilandgas #capex #b3
 
-Math (delta, median, stdev, ranking).
+9) Métricas de Qualidade
 
-Integration (Vitest + MSW/fixtures)
+Precisão factual (amostragem manual semanal).
 
-Full ingest of a small IF.Data window into Convex (mocked HTTP).
+Cobertura (nº de histórias únicas/hora).
 
-Full ingest of a month of COSIF (fixtures) → series persisted.
+Duplicação (<3% de dups em 7 dias).
 
-Compute step builds rankings.
+Latência (<30s por ciclo p95).
 
-E2E (Playwright, automated only)
+Custo (orçado por fase; routing no Gateway para otimizar).
 
-/relatorio/[slug] renders cards, charts, ranking, footers; export CSV works.
+Engajamento (visualizações/click‑through em “Fontes”).
 
-/relatorio/[slug]/ifdata/[id] shows expected quarterly data and ranking.
+10) Estrutura de Arquivos (revisada)
+telegram-news-agent/
+├─ src/
+│  ├─ app/
+│  │  ├─ api/
+│  │  │  ├─ cron/news-agent/route.ts       # Endpoint do Vercel Cron (+ lock)
+│  │  │  └─ trpc/[trpc]/route.ts           # Handler tRPC (se mantiver)
+│  │  ├─ page.tsx                           # Dashboard opcional (histórico/metrics)
+│  │  └─ layout.tsx
+│  ├─ server/
+│  │  ├─ agent/
+│  │  │  ├─ planner.ts
+│  │  │  ├─ collector.ts                    # search + fetch + parse (tools)
+│  │  │  ├─ validator.ts                    # allowlist, timestamps, autoridade
+│  │  │  ├─ cluster.ts                      # vector + fingerprint
+│  │  │  ├─ extract.ts                      # entidades/tickers/categorias
+│  │  │  ├─ rank.ts                         # scoring final
+│  │  │  ├─ write.ts                        # redação + checagem factual
+│  │  │  └─ format.ts                       # HTML Telegram
+│  │  ├─ services/
+│  │  │  ├─ ai/
+│  │  │  │  ├─ gateway.ts                   # cliente Vercel AI-Gateway
+│  │  │  │  ├─ llm.ts                       # policies de modelo por tarefa
+│  │  │  │  └─ embeddings.ts                # wrapper embed(1536)
+│  │  │  ├─ search/
+│  │  │  │  ├─ serp.ts                      # Tavily/Serper/Bing (opção A)
+│  │  │  │  └─ whitelist.ts                 # crawlers oficiais (opção B)
+│  │  │  ├─ storage/
+│  │  │  │  ├─ redis.ts                     # KV/JSON + locks + idempotência
+│  │  │  │  └─ vector.ts                    # Upstash Vector
+│  │  │  └─ telegram/bot.ts                 # wrapper Telegram
+│  │  └─ lib/
+│  │     ├─ fingerprints.ts                 # SimHash/MinHash
+│  │     ├─ time.ts                         # TZ BR, normalização de datas
+│  │     ├─ logger.ts                       # structured logging
+│  │     └─ types.ts                        # Zod schemas
+│  └─ lib/
+│     └─ utils.ts
+├─ .env.example
+├─ next.config.js
+├─ tsconfig.json
+├─ package.json
+└─ vercel.json                              # Cron
 
-Compare flow basic path.
+11) Fluxo de Execução (detalhado)
 
-Traces: retain-on-failure.
+Cron hit → /api/cron/news-agent valida Authorization.
 
-CI scripts only (no manual runner in prod).
+Lock run_lock (SETNX). Se falhar, 409 e encerra.
 
-15) Security & compliance
+Planner gera queries.
 
-Only public data; show license/source on “About” and footers.
+Collector chama search tool (cache SERP em Redis), faz fetch dos top‑links, parse.
 
-Sanitize all inputs with zod.
+Validator aplica allowlist, excluir antigos, medir content length.
 
-Rate‑limit search/autocomplete server‑side.
+Cluster usa Vector (topK=5) + fingerprint. Escolhe representante por cluster.
 
-Protect /api/health and cron routes (UA/secret header).
+Extract (LLM leve) entidades, categorias, tipo de evento.
 
-No secrets printed/logged.
+Rank calcula relevanceScore; filtra por limiar (≥7).
 
-16) Performance & UX polish
+Write (LLM frontier) redige resumo + bullets; Check revalida cada bullet contra o contexto bruto e URLs.
 
-Downsample long series in the browser; server can provide pre‑bucketed views on request.
+Format converte para HTML com fontes/hashtags.
 
-Virtualized tables (TanStack + shadcn table) for large rankings.
+Idempotency: checa idempotency:fingerprint. Se novo, envia Telegram; se já visto nas últimas 48h, descarta.
 
-Lazy‑load heavy UI segments; avoid chart renders below the fold.
+Persist no Redis e Vector; salva messageId.
 
-Accessible labels/tooltips; keyboard navigation for tables and dialogs.
+Release lock; loga métricas.
 
-17) Backlog (post‑launch)
+12) Variáveis de Ambiente
+# AI Gateway
+AI_GATEWAY_URL=
+AI_GATEWAY_API_KEY=
+AI_MODEL_SUMMARIZE=      # p.ex. openai:gpt-4o
+AI_MODEL_CLASSIFY=       # p.ex. openai:gpt-4o-mini
+AI_MODEL_EMBEDDING=openai:text-embedding-3-small
 
-4040 (consolidated) toggle and /conglomerado.
+# Upstash Redis
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
 
-More IF.Data reports via discovery.
+# Upstash Vector
+UPSTASH_VECTOR_REST_URL=
+UPSTASH_VECTOR_REST_TOKEN=
 
-Correlation matrix and distribution explorer.
+# Search API (opção A)
+SEARCH_API_KEY=          # Tavily/Serper/Bing
+SEARCH_API_ENDPOINT=
 
-Public read‑only mini‑API (tRPC subset → REST) if needed later.
+# Telegram
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
 
-18) Phased execution with CHECKLISTS & CHECKPOINTS
+# Security
+CRON_SECRET=
 
-Each phase ends with an automated checkpoint—LLM must produce artifacts and run the specified commands. If a checkpoint fails, halt and fix before proceeding.
+# Misc
+TZ=America/Sao_Paulo
+NODE_ENV=production
 
-Phase A — Bootstrap & Environment
+13) Ordem de Implementação (replanejada)
 
-Checklist
+Sprint 1 – Fundações
 
- Create Next.js 16 app with TS & App Router.
+Next.js + TS + vercel.json (Cron) + endpoint protegido.
 
- Install deps: @trpc/server @trpc/client @trpc/react-query zod convex adm-zip csv-parse recharts tailwindcss shadcn-ui @tanstack/react-table msw vitest playwright (adjust names if scaffold scripts differ).
+Redis/Vector clientes + locks/idempotência.
 
- Initialize Convex (npx convex dev structure).
+AI‑Gateway client + policies por tarefa.
 
- Add app/api/trpc/[trpc]/route.ts with fetchRequestHandler.
+Zod schemas.
 
- Add Tailwind + shadcn init; scaffold base components.
+Sprint 2 – Coleta confiável
+5. Search tool (A) + cache; fetch + parse HTML (sanitize).
+6. Allowlist e validação temporal/autoridade.
+7. Fingerprint (SimHash) + embeddings; cluster.
 
- Create server/logging/logger.ts and handleError.ts.
+Sprint 3 – IA & Relevância
+8. Extração entidades/categorias (LLM leve).
+9. Scoring/ranking; parametrização do limiar.
+10. Redação + checagem factual (LLM frontier).
 
- Confirm .env.local has CONVEX_*, BLOB_*, and data source URLs. Do not print values.
+Sprint 4 – Saída e Persistência
+11. Formatação HTML Telegram + inline keyboard.
+12. Envio com retry; persistência Redis/Vector.
+13. Métricas e structured logs (latência/custo/dups).
 
-Checkpoint A (automated)
+Sprint 5 – Qualidade & Hardening
+14. Testes de regressão (conjunto rotulado de notícias).
+15. Alarmes básicos (falhas de envio e ausência de resultados).
+16. (Opcional) QStash para dead‑letter/fan‑out.
 
-Run pnpm build → succeeds.
+14) Parâmetros recomendados
 
-Run a health script that imports env keys and verifies presence (without printing secrets).
+Vector: topK=5, threshold semântico ~0.86; janela de clusterização: 24h.
 
-pnpm dev boots Next and Convex locally; GET /api/health returns {ok:false, reason:"no runs yet"}.
+Fingerprint: Hamming distance ≤3 como duplicata.
 
-Phase B — Convex schema & seed
+Limiar de rank: iniciar em 7/10; ajustar conforme precision/recall.
 
-Checklist
+Corte por frescor: ≤ 3h (macro) / ≤ 6h (corporate noturno).
 
- Implement convex/schema.ts with tables/indexes listed in §4.
+Batch/hora: 3–8 histórias, priorizando macro/regulatório e company‑specific de alta materialidade.
 
- Create convex/migrations if needed; push schema.
+15) Observabilidade (sem Sentry)
 
- Implement convex/institutions.ts::sync(); scripts/backfill_slugs.ts.
+Logs: por fase (coleta, validação, cluster, redação, envio), com traceId.
 
- Implement scripts/bootstrap_indicators.ts to seed IF.Data reports and COSIF dictionary (level‑3 → indicator mapping).
+Métricas: armazenar no Redis (last_run_metadata) + opcional Log Drain da Vercel para Axiom/Datadog.
 
-Checkpoint B
+Alertas: se enviadas=0 por 3 ciclos seguidos ou falhas_envio>0 p95 → webhook de alerta (ou mensagem para canal interno no Telegram).
 
-Run pnpm convex:push (or equivalent) → ok.
+16) Riscos e Mitigações
 
-Run node scripts/bootstrap_indicators.ts → indicators populated (≥ 6 IF.Data, ≥ 8 COSIF).
+Paywalls: priorizar fontes oficiais/regulatórias e leads públicos. Quando só houver manchete, rotular explicitamente (“conteúdo parcial”).
 
-Run node scripts/backfill_slugs.ts after institutions.sync() → institutions table has ≥ N entries with slug.
+Hallucination: bloqueado pelo retrieve‑then‑generate + checagem factual cruzada.
 
-Phase C — Clients & ingestion (IF.Data)
+Timezone/horário de verão: centralizar em time.ts (IANA TZ) e imprimir sempre timestamp com “BRT/BRST”.
 
-Checklist
+Troca de modelo/embedding: versionar embedding_model no metadado; reindexar incrementalmente.
 
- Implement server/clients/odata.ts (retry/backoff, @odata.nextLink).
+Conclusão
 
- Implement convex/ingest_ifdata.ts::refresh({windowQuarters}).
+Sim, dá para melhorar o agentic flow: o plano revisado introduz pipeline multiestágios com checagem factual e governança de fontes.
 
- Implement lineage recording and optional Blob archival for IF.Data JSON.
+Sim, usar o Vercel AI‑Gateway traz agnosticidade, métricas e fallback/routing por tarefa.
 
- Add unit tests for OData client; integration test for a small window (mocked responses).
+QStash: não é necessário no MVP. Adote quando precisar de retries desacoplados, fan‑out e DLQ.
 
-Checkpoint C
+Correções-chave: embeddings 1536 dims; citações determinísticas; allowlist; locks; fingerprint adicional na deduplicação; formatação HTML no Telegram.
 
-Run integration test: pnpm test → ensures series has quarterly points for selected indicators across ≥ 8 quarters.
-
-lineage has entries for IF.Data pulls.
-
-Phase D — Clients & ingestion (COSIF)
-
-Checklist
-
- Implement server/clients/cosif.ts (download, unzip, parse).
-
- Implement convex/ingest_cosif.ts::refresh({...}) with mapping via COSIF dictionary.
-
- Write unit tests for CSV parser & aggregator.
-
- Add Blob archival of raw ZIP and optional normalized CSV; write lineage.
-
-Checkpoint D
-
-Run integration test ingesting 1–2 months of fixtures → series has monthly values for ≥ 8 COSIF indicators.
-
-lineage shows ZIP stored and hashed; no parser errors.
-
-Phase E — Compute layer
-
-Checklist
-
- Implement server/math/{stats,ranking,resampling}.ts.
-
- Implement convex/compute.ts::rebuild({periods}).
-
- Add tests verifying deterministic ranks, ties, percentiles.
-
-Checkpoint E
-
-Run compute on current data → rankings populated for latest Q and M periods; tests pass.
-
-Phase F — tRPC contracts & UI
-
-Checklist
-
- Build routers: institutions, indicators, series, rankings, compare, search.
-
- Create /relatorio/[slug] page (SSR), KpiCards, TimeSeries, CosifTree, RankingTable, SourceFootnote.
-
- Create /relatorio/[slug]/ifdata/[id] page.
-
- Implement CSV export flow → push to Blob → return URL.
-
- Apply caching tags and revalidate on ingest/compute.
-
-Checkpoint F
-
-Manual render under seeded fixtures in dev: pages load, charts/tables show data; export returns a valid Blob URL; footers show sources.
-
-Phase G — Cron wiring & health
-
-Checklist
-
- vercel.json with three cron entries.
-
- app/api/cron/* handlers → call Convex HTTP Action; write job_runs start/finish; errors on failure.
-
- /api/revalidate endpoint to receive tags.
-
-Checkpoint G
-
-Simulate cron calls locally (with UA override) → mutations fire, job_runs updated, revalidation invoked (log entry), pages reflect new data.
-
-Phase H — Testing (Playwright automated only)
-
-Checklist
-
- Vitest unit/integration suite green.
-
- Playwright specs for pages and exports; trace: retain-on-failure.
-
- CI scripts test, test:e2e, and caching configured (optional Turborepo).
-
-Checkpoint H
-
-CI run → all tests pass; artifacts only on failure.
-
-Phase I — Launch readiness
-
-Checklist
-
- About/Fontes page with license/source text.
-
- Rate limiting for search/autocomplete.
-
- /api/health protected by header check.
-
- Log format validated in Vercel dashboard; error injection test recorded in errors.
-
-Checkpoint I
-
-Dry run of a full day: IF.Data cron (no‑op if no new data), COSIF cron (mock month), compute cron → all job_runs success; UI shows new data; no uncaught errors.
-
-19) Implementation snippets (orientation only)
-
-LLMs: adapt names if templates differ; always read env from process.env.
-
-tRPC Route Handler
-
-// app/api/trpc/[trpc]/route.ts
-import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { appRouter } from '@/server/trpc/router';
-import { createContext } from '@/server/trpc/context';
-export const runtime = 'nodejs';
-const handler = (req: Request) =>
-  fetchRequestHandler({ endpoint: '/api/trpc', router: appRouter, req, createContext });
-export { handler as GET, handler as POST };
-
-
-Revalidation endpoint
-
-// app/api/revalidate/route.ts
-import { revalidateTag } from 'next/cache';
-export async function POST(req: Request) {
-  const { tags } = await req.json();
-  for (const t of tags) revalidateTag(t);
-  return Response.json({ ok: true, tags });
-}
-
-
-Cron handler (pattern)
-
-// app/api/cron/ifdata/route.ts
-import { logger } from '@/server/logging/logger';
-export const runtime = 'nodejs';
-export async function GET(req: Request) {
-  if (!req.headers.get('user-agent')?.includes('vercel-cron')) return new Response('forbidden', { status: 403 });
-  const runId = `ifdata-${Date.now()}`;
-  logger.info({ scope: 'cron.ifdata', msg: 'start', ctx: { runId } });
-  try {
-    await fetch(`${process.env.CONVEX_SITE_URL}/ingest/ifdata`, { method:'POST' });
-    logger.info({ scope: 'cron.ifdata', msg: 'done', ctx: { runId } });
-    return Response.json({ ok: true });
-  } catch (e:any) {
-    logger.error({ scope: 'cron.ifdata', msg: 'failed', err: { message: e?.message } , ctx: { runId } });
-    return new Response('error', { status: 500 });
-  }
-}
-
-
-Logger
-
-// server/logging/logger.ts
-export const logger = {
-  info:  (o:any) => console.log(JSON.stringify({ ts: Date.now(), level:'info',  ...o })),
-  warn:  (o:any) => console.log(JSON.stringify({ ts: Date.now(), level:'warn',  ...o })),
-  error: (o:any) => console.error(JSON.stringify({ ts: Date.now(), level:'error', ...o }))
-};
-
-
-OData fetch (paged)
-
-// server/clients/odata.ts
-export async function odataFetch(base: string, entity: string, params: Record<string,string|number> = {}) {
-  const usp = new URLSearchParams({ $format: 'json', ...Object.fromEntries(Object.entries(params).map(([k,v])=>[k,String(v)])) });
-  let url = `${base.replace(/\/$/, '')}/${entity}?${usp.toString()}`;
-  const rows:any[] = [];
-  for (let i=0; i<1024; i++) {
-    const r = await fetch(url, { headers: { accept:'application/json' } });
-    if (!r.ok) throw new Error(`OData ${entity} ${r.status}`);
-    const j:any = await r.json();
-    rows.push(...(j.value ?? []));
-    if (!j['@odata.nextLink']) break;
-    url = j['@odata.nextLink'];
-  }
-  return rows;
-}
-
-
-COSIF ZIP parse
-
-// server/clients/cosif.ts
-import AdmZip from 'adm-zip';
-import { parse } from 'csv-parse/sync';
-export function parseCosifZip(zipBuf: Buffer) {
-  const zip = new AdmZip(zipBuf);
-  return zip.getEntries()
-    .filter(e => e.entryName.toLowerCase().endsWith('.csv'))
-    .flatMap(e => parse(e.getData().toString('latin1'), { columns:true, delimiter:';', skip_empty_lines:true }));
-}
-
-20) LLM execution rules (meta)
-
-Never prompt a human. If data is missing, choose a sensible default or skip with a logged warning; do not block.
-
-Idempotent writes: all ingest/compute steps must be safe to re‑run.
-
-Small, verifiable steps: after each phase, run its checkpoint; on failure, stop and fix.
-
-No secret exposure: never print env values; only check existence.
-
-Deterministic outputs: statistics/rankings must not depend on iteration order; document tie‑breaks.
-
-Cite source in UI: every chart/table shows its origin (IF.Data or COSIF) and frequency (Q or M).
-
-Blob only for artifacts: never use Blob as a query store; Convex is the database.
-
-Tests first for parsers: write unit tests before ingesting real data.
-
-Final remarks
-
-This plan is LLM‑operable: every unit of work has inputs, outputs, and a checkpoint. It respects your constraints (Convex DB, Vercel Cron with Convex, no Sentry, Playwright only for automation) and adds operational guardrails (lineage, logging, health) without extra vendors.
-
-If you want, I can now produce a task queue (JSON) that a multi‑agent runner can consume, where each task references these checklists and emits artifacts ready for the next phase.
+Se quiser, na próxima resposta já lhe entrego os Zod schemas e a assinatura das funções principais (planner, collector, cluster, rank, write/check, format, send) prontos para colar no projeto.

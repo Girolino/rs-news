@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { buildRerankPrompt } from "@/server/services/ai/prompts";
 import { runGenerateObject } from "@/server/services/ai/gateway";
-import { getModelName } from "@/server/services/ai/models";
+import { getModelName } from "@/lib/ai/models";
 import {
   prefilteredNewsItemSchema,
   rerankedNewsItemSchema,
@@ -10,8 +10,6 @@ import {
 } from "@/types/news";
 import { logger } from "@/server/lib/logger";
 import { getNumericEnv, loadEnv } from "@/config/env";
-
-const env = loadEnv();
 
 const rerankResponseSchema = z.object({
   news: z.array(
@@ -38,6 +36,7 @@ export async function runRerankStage(
   prefiltered: PrefilteredNewsItem[],
 ): Promise<RerankResult> {
   logger.info("stage.rerank.start", { total: prefiltered.length });
+  const env = loadEnv();
   const maxNewsPerRun = getNumericEnv(
     env.MAX_NEWS_PER_RUN,
     DEFAULT_MAX_NEWS,
@@ -55,7 +54,7 @@ export async function runRerankStage(
 
   const prompt = buildRerankPrompt(prefiltered, maxNewsPerRun);
   const response = await runGenerateObject(
-    getModelName("RERANK"),
+    getModelName("rerank"),
     rerankResponseSchema,
     prompt,
   );

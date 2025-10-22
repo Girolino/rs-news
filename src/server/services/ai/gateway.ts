@@ -3,16 +3,22 @@ import { generateObject, generateText } from "ai";
 import type { ZodSchema } from "zod";
 import { loadEnv } from "@/config/env";
 
-const env = loadEnv();
+// Lazy initialization to allow dotenv to load first
+let openai: ReturnType<typeof createOpenAI> | null = null;
 
-const openai = createOpenAI({
-  apiKey: env.AI_GATEWAY_API_KEY,
-  baseURL: env.AI_GATEWAY_BASE_URL,
-});
+function getOpenAI() {
+  if (!openai) {
+    const env = loadEnv();
+    openai = createOpenAI({
+      apiKey: env.OPENAI_API_KEY,
+    });
+  }
+  return openai;
+}
 
 export async function runGenerateText(model: string, prompt: string) {
   const result = await generateText({
-    model: openai(model),
+    model: getOpenAI()(model),
     prompt,
   });
   return result.text;
@@ -24,7 +30,7 @@ export async function runGenerateObject<T>(
   prompt: string,
 ) {
   const result = await generateObject({
-    model: openai(model),
+    model: getOpenAI()(model),
     schema,
     prompt,
   });
@@ -32,5 +38,5 @@ export async function runGenerateObject<T>(
 }
 
 export function getOpenAIClient() {
-  return openai;
+  return getOpenAI();
 }

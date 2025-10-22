@@ -6,8 +6,6 @@ import {
   rerankedNewsItemSchema,
 } from "@/types/news";
 
-const env = loadEnv();
-
 const DEFAULT_THRESHOLD = 0.9;
 
 export type DedupResult = {
@@ -19,6 +17,7 @@ export async function runDedupStage(
   reranked: RerankedNewsItem[],
 ): Promise<DedupResult> {
   logger.info("stage.dedup.start", { total: reranked.length });
+  const env = loadEnv();
   const threshold = getNumericEnv(
     env.DEDUP_SIMILARITY_THRESHOLD,
     DEFAULT_THRESHOLD,
@@ -29,12 +28,12 @@ export async function runDedupStage(
   for (const item of reranked) {
     rerankedNewsItemSchema.parse(item);
     try {
-      const result = await searchIndex.search({
+      const result = await searchIndex().search({
         query: item.title,
         limit: 3,
         reranking: true,
       });
-      const hasDuplicate = result.some((doc) => doc.score >= threshold);
+      const hasDuplicate = result.some((doc: { score: number }) => doc.score >= threshold);
       if (hasDuplicate) {
         duplicates += 1;
         logger.info("stage.dedup.duplicate_found", {

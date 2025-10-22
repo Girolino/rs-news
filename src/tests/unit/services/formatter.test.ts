@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildTelegramMessage } from "@/server/services/telegram/formatter";
-import type { FormattedNewsItem } from "@/types/news";
+import type { StructuredNewsItem } from "@/types/news";
 
-const sample: FormattedNewsItem = {
+const sample: StructuredNewsItem = {
   id: "1",
   newsId: "hash-123",
   normalizedTitle: "petrobras anuncia resultado",
@@ -35,15 +35,14 @@ const sample: FormattedNewsItem = {
   relevanceScore: 9,
   impact: "alta",
   shouldProcess: true,
-  messageHtml: "",
 };
 
-sample.messageHtml = buildTelegramMessage(sample);
+const messageHtml = buildTelegramMessage(sample);
 
 describe("telegram formatter", () => {
   it("builds HTML with escaped characters", () => {
-    expect(sample.messageHtml).toContain("<b>Petrobras anuncia resultado recorde</b>");
-    expect(sample.messageHtml).toContain("<a href=");
-    expect(sample.messageHtml).toContain("#PETR4");
+    expect(messageHtml).toContain("<b>Petrobras anuncia resultado recorde</b>");
+    expect(messageHtml).toContain("<a href=");
+    expect(messageHtml).toContain("#PETR4");
   });
 });

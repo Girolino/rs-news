@@ -2,11 +2,7 @@ import { z } from "zod";
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  AI_GATEWAY_API_KEY: z.string(),
-  AI_GATEWAY_BASE_URL: z.string().url().optional(),
-  AI_DISCOVERY_MODEL: z.string().optional(),
-  AI_RERANK_MODEL: z.string().optional(),
-  AI_SUMMARY_MODEL: z.string().optional(),
+  OPENAI_API_KEY: z.string(),
   UPSTASH_REDIS_REST_URL: z.string().url(),
   UPSTASH_REDIS_REST_TOKEN: z.string(),
   UPSTASH_SEARCH_REST_URL: z.string().url(),
@@ -28,7 +24,15 @@ export function loadEnv(): Env {
   if (cachedEnv) {
     return cachedEnv;
   }
-  const parsed = envSchema.safeParse(process.env);
+  const mergedEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    UPSTASH_REDIS_REST_URL:
+      process.env.UPSTASH_REDIS_REST_URL ?? process.env.UPSTASH_KV_REST_API_URL,
+    UPSTASH_REDIS_REST_TOKEN:
+      process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.UPSTASH_KV_REST_API_TOKEN,
+  };
+
+  const parsed = envSchema.safeParse(mergedEnv);
   if (!parsed.success) {
     throw new Error(
       `Failed to load environment variables: ${parsed.error.message}`,
