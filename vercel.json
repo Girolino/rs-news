@@ -1,0 +1,13 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/news-agent",
+      "schedule": "0 * * * *"
+    }
+  ],
+  "functions": {
+    "api/cron/news-agent/route.ts": {
+      "maxDuration": 300
+    }
+  }
+}

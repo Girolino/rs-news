@@ -1,36 +1,141 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RS News Agent
 
-## Getting Started
+Pipeline automatizado que descobre, filtra, sumariza e envia notícias de economia e empresas brasileiras para um canal do Telegram. A execução padrão ocorre via cron job no Vercel (a cada hora), com suporte a disparos manuais via tRPC ou endpoints HTTP.
 
-First, run the development server:
+## Arquitetura
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Framework**: Next.js 16 (App Router, runtime Node)
+- **Orquestração**: `src/server/agent/orchestrator.ts` coordena os estágios (descoberta → filtro → rerank → dedup → sumarização → formatação → envio → persistência)
+- **LLM**: Vercel AI Gateway + OpenAI (`ai` SDK)
+- **Storage**: Upstash Redis (locks e persistência) + Upstash Search (deduplicação e indexação)
+- **Mensageria**: Telegram Bot API (HTML sanitized)
+- **Observabilidade**: logs estruturados em `logger.ts` + persistência do último run em Redis (`agent:news:last_run`)
+
+## Diagramas
+
+```
+Vercel Cron ──► Orchestrator
+                 │
+                 ├── Stage 1: discovery (LLM + web search prompt)
+                 ├── Stage 2: prefilter (heurísticas rápidas)
+                 ├── Stage 3: rerank (LLM scoring)
+                 ├── Stage 4: dedup (Upstash Search)
+                 ├── Stage 5: summarize (LLM + citações)
+                 ├── Stage 6: format (HTML seguro)
+                 ├── Stage 7: send (Telegram API + retry)
+                 └── Stage 8: persist (Redis + Search)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Pré-requisitos
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Node.js ≥ 22 (vitest 4 requer engines atualizadas)
+- Conta no Vercel com AI Gateway configurado
+- Instâncias Upstash Redis e Upstash Search ativas
+- Bot do Telegram com token e chat ID
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Variáveis de ambiente
 
-## Learn More
+Copie `.env.example` para `.env.local` e preencha os valores reais:
 
-To learn more about Next.js, take a look at the following resources:
+```
+AI_GATEWAY_API_KEY=
+AI_GATEWAY_BASE_URL=
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+UPSTASH_SEARCH_REST_URL=
+UPSTASH_SEARCH_REST_TOKEN=
+UPSTASH_SEARCH_INDEX=news-br
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+CRON_SECRET=optional-secret
+NODE_ENV=development
+MAX_NEWS_PER_RUN=10
+RELEVANCE_THRESHOLD=7
+DEDUP_SIMILARITY_THRESHOLD=0.9
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+> `CRON_SECRET` é recomendado para proteger os endpoints `/api/cron/news-agent` e `/api/admin/retry-failed` (Bearer token).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+- `npm run dev` – desenvolvimento local (Next.js + App Router)
+- `npm run lint` – ESLint sobre todo o projeto
+- `npm run test` – suíte de testes (vitest)
+- `npm run test:watch` / `npm run test:coverage`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Testes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+A suíte cobre:
+
+- Utilitários (`hash`, `lock`, `formatter`, `validator`)
+- Estágios de prefilter e dedup com mocks controlados
+- Integração do orquestrador com pipeline mockado
+
+Os testes executam com `vitest` e carregam `.env.local` via `vitest.setup.ts`. Não há chamadas reais para Upstash/Telegram durante os testes.
+
+## Endpoints
+
+| Método | Caminho | Descrição |
+| ------ | ------- | --------- |
+| `GET/POST` | `/api/cron/news-agent` | Dispara a execução completa (usado pelo Vercel Cron). Requer `Authorization: Bearer <CRON_SECRET>` se definido. |
+| `POST` | `/api/admin/retry-failed` | Reenvia mensagens que falharam no Telegram e atualiza o estado. |
+| tRPC | `news.runAgent` | Mutation para disparo manual programático. |
+
+Dashboard simplificado disponível em `/` com referência rápida dos endpoints.
+
+## Deploy (Vercel)
+
+1. Configure as variáveis de ambiente no dashboard do Vercel.
+2. Garanta que o AI Gateway esteja apontando para o modelo desejado (`openai:gpt-4o` / `openai:gpt-4o-mini`).
+3. `vercel.json` inclui o cron `0 * * * *` e `maxDuration` de 300s para o endpoint.
+4. Após deploy, teste manualmente:
+   - `curl https://<deploy>/api/cron/news-agent -H "Authorization: Bearer $CRON_SECRET"`
+   - Verifique logs no Vercel e mensagens no Telegram.
+
+## Estrutura de pastas relevante
+
+```
+src/
+  app/
+    api/
+      cron/news-agent/route.ts
+      admin/retry-failed/route.ts
+      trpc/[trpc]/route.ts
+    layout.tsx
+    page.tsx
+  server/
+    agent/
+      orchestrator.ts
+      stages/
+    api/
+      root.ts
+      routers/news.ts
+      trpc.ts
+    lib/
+      hash.ts
+      lock.ts
+      logger.ts
+      retry.ts
+    services/
+      ai/
+      storage/
+      telegram/
+  types/
+    agent.ts
+    news.ts
+    telegram.ts
+```
+
+## Próximos passos sugeridos
+
+- Ajustar prompts de descoberta para integrar uma ferramenta de web search real (caso disponível via AI Gateway).
+- Adicionar monitoramento/alertas (ex: enviar log de falha para canal admin).
+- Implementar dashboard administrativo com visualização dos últimos envios (reutilizando dados do Redis/Search).
+
+
+```bash
+
+git add .; git commit -m 'v 0.01.00 chore: deploy original'; git push origin main
+git reset --hard; git clean -fd; git checkout dev-branch; git pull origin dev-branch
+git reset --hard c2366a1
+git push --force origin dev-branch
