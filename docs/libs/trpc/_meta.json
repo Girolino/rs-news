@@ -1,0 +1,15 @@
+{
+  "library": "trpc",
+  "displayName": "tRPC",
+  "generated_at": "2025-10-22T14:17:58.154Z",
+  "total_docs": 25,
+  "total_directories": 5,
+  "sections": {
+    "quickstart": 4,
+    "server": 6,
+    "client": 4,
+    "procedures": 3,
+    "advanced": 4,
+    "adapters": 4
+  }
+}

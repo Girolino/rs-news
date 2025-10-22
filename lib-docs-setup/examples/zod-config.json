@@ -1,0 +1,93 @@
+{
+  "id": "zod",
+  "name": "zod",
+  "displayName": "Zod",
+  "homepage": "https://zod.dev",
+  "docsUrl": "https://zod.dev",
+  "source": {
+    "type": "manual",
+    "manualLinksFile": "docs/libs/zod-llm-txt.md"
+  },
+  "parser": {
+    "contentSelectors": [
+      "main",
+      "article",
+      "[role='main']",
+      ".docs-content",
+      "#docs-content",
+      ".markdown-body"
+    ],
+    "removeSelectors": [
+      "script",
+      "style",
+      "nav",
+      "header",
+      "footer",
+      ".sidebar",
+      ".breadcrumb",
+      ".edit-link",
+      ".on-this-page",
+      "[data-docs-nav]",
+      "[class*='navigation']",
+      "[class*='banner']",
+      ".feedback",
+      ".table-of-contents"
+    ]
+  },
+  "structure": {
+    "outputDir": "docs/libs/zod",
+    "organizationStrategy": "by-url-path"
+  },
+  "skill": {
+    "enabled": true,
+    "skillId": "zod-docs",
+    "description": "Query Zod documentation for TypeScript-first schema validation, parsing, and type inference.",
+    "sections": [
+      {
+        "name": "basics",
+        "description": "Basic types and validation",
+        "exampleQuery": "How do I create a basic schema?"
+      },
+      {
+        "name": "primitives",
+        "description": "String, number, boolean, etc.",
+        "exampleQuery": "What primitive types does Zod support?"
+      },
+      {
+        "name": "objects",
+        "description": "Object schemas and validation",
+        "exampleQuery": "How to validate objects?"
+      },
+      {
+        "name": "arrays",
+        "description": "Array and tuple validation",
+        "exampleQuery": "How to validate arrays?"
+      },
+      {
+        "name": "refinements",
+        "description": "Custom validation and refinements",
+        "exampleQuery": "How to add custom validation?"
+      },
+      {
+        "name": "transformations",
+        "description": "Data transformation and parsing",
+        "exampleQuery": "How to transform data during validation?"
+      },
+      {
+        "name": "error-handling",
+        "description": "Error messages and handling",
+        "exampleQuery": "How to customize error messages?"
+      },
+      {
+        "name": "type-inference",
+        "description": "TypeScript type inference",
+        "exampleQuery": "How to infer TypeScript types from schemas?"
+      }
+    ]
+  },
+  "fetch": {
+    "delayMs": 1000,
+    "maxRetries": 3,
+    "retryDelayMs": 2000
+  }
+}

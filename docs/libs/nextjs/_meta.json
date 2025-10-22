@@ -1,0 +1,16 @@
+{
+  "library": "nextjs",
+  "displayName": "Next.js 16",
+  "generated_at": "2025-10-22T14:17:59.874Z",
+  "total_docs": 37,
+  "total_directories": 8,
+  "sections": {
+    "getting-started": 2,
+    "app-router": 12,
+    "data-fetching": 4,
+    "rendering": 4,
+    "styling": 4,
+    "optimizations": 6,
+    "api-reference": 5
+  }
+}

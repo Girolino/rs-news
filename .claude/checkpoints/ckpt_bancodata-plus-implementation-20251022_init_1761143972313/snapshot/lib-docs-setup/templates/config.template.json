@@ -1,0 +1,69 @@
+{
+  "id": "{{LIB_ID}}",
+  "name": "{{LIB_ID}}",
+  "displayName": "{{LIB_DISPLAY_NAME}}",
+  "homepage": "https://{{DOMAIN}}",
+  "docsUrl": "https://{{DOMAIN}}/docs",
+  "source": {
+    "type": "manual",
+    "manualLinksFile": "docs/libs/{{LIB_ID}}-llm-txt.md"
+  },
+  "parser": {
+    "contentSelectors": [
+      "main",
+      "article",
+      "[role='main']",
+      ".docs-content",
+      "#docs-content",
+      ".markdown-body",
+      ".content"
+    ],
+    "removeSelectors": [
+      "script",
+      "style",
+      "nav",
+      "header",
+      "footer",
+      "aside",
+      ".sidebar",
+      ".navigation",
+      ".breadcrumb",
+      ".edit-link",
+      ".feedback",
+      ".table-of-contents",
+      "[class*='navigation']",
+      "[class*='banner']"
+    ]
+  },
+  "structure": {
+    "outputDir": "docs/libs/{{LIB_ID}}",
+    "organizationStrategy": "by-url-path"
+  },
+  "skill": {
+    "enabled": true,
+    "skillId": "{{LIB_ID}}-docs",
+    "description": "Query {{LIB_DISPLAY_NAME}} documentation for [key topics]",
+    "sections": [
+      {
+        "name": "getting-started",
+        "description": "Installation and setup",
+        "exampleQuery": "How do I get started with {{LIB_DISPLAY_NAME}}?"
+      },
+      {
+        "name": "core-concepts",
+        "description": "Core concepts and patterns",
+        "exampleQuery": "What are the core concepts of {{LIB_DISPLAY_NAME}}?"
+      },
+      {
+        "name": "api-reference",
+        "description": "API documentation",
+        "exampleQuery": "What APIs does {{LIB_DISPLAY_NAME}} provide?"
+      }
+    ]
+  },
+  "fetch": {
+    "delayMs": 1000,
+    "maxRetries": 3,
+    "retryDelayMs": 2000
+  }
+}

@@ -1,0 +1,475 @@
+{
+  "taskId": "bancodata-plus-implementation-20251022",
+  "description": "Build production-grade analytics portal for Brazilian financial institutions with full data lineage, ingestion pipelines, and UX",
+  "source": "/Users/fernandomaluf/Dropbox/data-banco/docs/llm-guide/plan.md",
+  "status": "EXECUTING",
+  "startTime": "2025-10-22T00:00:00.000Z",
+  "estimatedDuration": "8h",
+  "currentTaskIndex": 0,
+  "atomicTasks": [
+    {
+      "id": "A.1",
+      "description": "Create Next.js 16 app with TypeScript and App Router structure",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": [],
+      "retryCount": 0
+    },
+    {
+      "id": "A.2",
+      "description": "Install all required dependencies (trpc, convex, zod, recharts, shadcn, etc.)",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["A.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "A.3",
+      "description": "Initialize Convex development environment (npx convex dev structure)",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["A.2"],
+      "retryCount": 0
+    },
+    {
+      "id": "A.4",
+      "description": "Create tRPC route handler at app/api/trpc/[trpc]/route.ts",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["A.3"],
+      "retryCount": 0
+    },
+    {
+      "id": "A.5",
+      "description": "Initialize Tailwind CSS and shadcn/ui with base components",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["A.2"],
+      "retryCount": 0
+    },
+    {
+      "id": "A.6",
+      "description": "Create logging infrastructure (server/logging/logger.ts and handleError.ts)",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["A.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "A.7",
+      "description": "Verify .env.local has all required keys (CONVEX_*, BLOB_*, data source URLs)",
+      "estimatedTime": "3min",
+      "status": "pending",
+      "dependencies": ["A.3"],
+      "retryCount": 0
+    },
+    {
+      "id": "A.8",
+      "description": "Run pnpm build to verify Phase A bootstrap is complete",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["A.4", "A.5", "A.6", "A.7"],
+      "retryCount": 0
+    },
+    {
+      "id": "B.1",
+      "description": "Implement Convex schema.ts with all tables and indexes from section 4",
+      "estimatedTime": "10min",
+      "status": "pending",
+      "dependencies": ["A.8"],
+      "retryCount": 0
+    },
+    {
+      "id": "B.2",
+      "description": "Push Convex schema and handle any migrations",
+      "estimatedTime": "3min",
+      "status": "pending",
+      "dependencies": ["B.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "B.3",
+      "description": "Implement convex/institutions.ts with sync() function",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["B.2"],
+      "retryCount": 0
+    },
+    {
+      "id": "B.4",
+      "description": "Create scripts/backfill_slugs.ts for institution slug generation",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["B.3"],
+      "retryCount": 0
+    },
+    {
+      "id": "B.5",
+      "description": "Create scripts/bootstrap_indicators.ts to seed IF.Data reports and COSIF dictionary",
+      "estimatedTime": "10min",
+      "status": "pending",
+      "dependencies": ["B.2"],
+      "retryCount": 0
+    },
+    {
+      "id": "B.6",
+      "description": "Run bootstrap_indicators.ts and verify indicators table populated",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["B.5"],
+      "retryCount": 0
+    },
+    {
+      "id": "C.1",
+      "description": "Implement server/clients/odata.ts with retry, backoff, and pagination",
+      "estimatedTime": "10min",
+      "status": "pending",
+      "dependencies": ["B.6"],
+      "retryCount": 0
+    },
+    {
+      "id": "C.2",
+      "description": "Implement convex/ingest_ifdata.ts with refresh() function",
+      "estimatedTime": "10min",
+      "status": "pending",
+      "dependencies": ["C.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "C.3",
+      "description": "Add lineage recording and Blob archival for IF.Data JSON",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["C.2"],
+      "retryCount": 0
+    },
+    {
+      "id": "C.4",
+      "description": "Create unit tests for OData client functionality",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["C.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "C.5",
+      "description": "Run integration test for IF.Data ingestion and verify series data",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["C.3", "C.4"],
+      "retryCount": 0
+    },
+    {
+      "id": "D.1",
+      "description": "Implement server/clients/cosif.ts (download, unzip, parse CSV)",
+      "estimatedTime": "10min",
+      "status": "pending",
+      "dependencies": ["C.5"],
+      "retryCount": 0
+    },
+    {
+      "id": "D.2",
+      "description": "Implement convex/ingest_cosif.ts with refresh() and COSIF dictionary mapping",
+      "estimatedTime": "10min",
+      "status": "pending",
+      "dependencies": ["D.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "D.3",
+      "description": "Create unit tests for CSV parser and aggregator",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["D.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "D.4",
+      "description": "Add Blob archival for raw ZIP and normalized CSV with lineage",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["D.2"],
+      "retryCount": 0
+    },
+    {
+      "id": "D.5",
+      "description": "Run integration test for COSIF ingestion and verify monthly series",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["D.3", "D.4"],
+      "retryCount": 0
+    },
+    {
+      "id": "E.1",
+      "description": "Implement server/math/stats.ts (delta, median, stdev)",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["D.5"],
+      "retryCount": 0
+    },
+    {
+      "id": "E.2",
+      "description": "Implement server/math/ranking.ts with tie-handling and percentiles",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["D.5"],
+      "retryCount": 0
+    },
+    {
+      "id": "E.3",
+      "description": "Implement server/math/resampling.ts (rollupYear, rollupSemester)",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["D.5"],
+      "retryCount": 0
+    },
+    {
+      "id": "E.4",
+      "description": "Implement convex/compute.ts with rebuild() function",
+      "estimatedTime": "10min",
+      "status": "pending",
+      "dependencies": ["E.1", "E.2", "E.3"],
+      "retryCount": 0
+    },
+    {
+      "id": "E.5",
+      "description": "Create tests for ranking determinism, ties, and percentiles",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["E.2"],
+      "retryCount": 0
+    },
+    {
+      "id": "E.6",
+      "description": "Run compute on test data and verify rankings populated",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["E.4", "E.5"],
+      "retryCount": 0
+    },
+    {
+      "id": "F.1",
+      "description": "Create tRPC context.ts and base router structure",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["E.6"],
+      "retryCount": 0
+    },
+    {
+      "id": "F.2",
+      "description": "Implement institutions router (bySlug, list)",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["F.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "F.3",
+      "description": "Implement indicators router (getByCode, listByGroup)",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["F.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "F.4",
+      "description": "Implement series router (forInstitution, latestSnapshot)",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["F.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "F.5",
+      "description": "Implement rankings router (position, table)",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["F.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "F.6",
+      "description": "Implement compare and search routers",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["F.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "F.7",
+      "description": "Create shadcn UI components (KpiCard, TimeSeries, CosifTree, RankingTable)",
+      "estimatedTime": "10min",
+      "status": "pending",
+      "dependencies": ["F.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "F.8",
+      "description": "Implement /relatorio/[slug] page with all sections",
+      "estimatedTime": "10min",
+      "status": "pending",
+      "dependencies": ["F.2", "F.3", "F.4", "F.5", "F.7"],
+      "retryCount": 0
+    },
+    {
+      "id": "F.9",
+      "description": "Implement /relatorio/[slug]/ifdata/[id] page",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["F.3", "F.4", "F.5", "F.7"],
+      "retryCount": 0
+    },
+    {
+      "id": "F.10",
+      "description": "Implement CSV export flow with Blob storage",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["F.8"],
+      "retryCount": 0
+    },
+    {
+      "id": "F.11",
+      "description": "Apply Next.js cache tags and implement revalidation logic",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["F.8", "F.9"],
+      "retryCount": 0
+    },
+    {
+      "id": "G.1",
+      "description": "Create vercel.json with three cron schedule entries",
+      "estimatedTime": "3min",
+      "status": "pending",
+      "dependencies": ["F.11"],
+      "retryCount": 0
+    },
+    {
+      "id": "G.2",
+      "description": "Implement app/api/cron/ifdata/route.ts handler",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["G.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "G.3",
+      "description": "Implement app/api/cron/cosif/route.ts handler",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["G.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "G.4",
+      "description": "Implement app/api/cron/compute/route.ts handler",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["G.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "G.5",
+      "description": "Implement app/api/revalidate/route.ts endpoint",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["G.1"],
+      "retryCount": 0
+    },
+    {
+      "id": "G.6",
+      "description": "Implement app/api/health/route.ts with job status reporting",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["G.2", "G.3", "G.4"],
+      "retryCount": 0
+    },
+    {
+      "id": "G.7",
+      "description": "Test cron handlers locally and verify job_runs table updates",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["G.2", "G.3", "G.4", "G.5", "G.6"],
+      "retryCount": 0
+    },
+    {
+      "id": "H.1",
+      "description": "Ensure all Vitest unit tests are passing",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["G.7"],
+      "retryCount": 0
+    },
+    {
+      "id": "H.2",
+      "description": "Create Playwright E2E test for /relatorio/[slug] page",
+      "estimatedTime": "10min",
+      "status": "pending",
+      "dependencies": ["G.7"],
+      "retryCount": 0
+    },
+    {
+      "id": "H.3",
+      "description": "Create Playwright E2E test for /relatorio/[slug]/ifdata/[id] page",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["G.7"],
+      "retryCount": 0
+    },
+    {
+      "id": "H.4",
+      "description": "Create Playwright E2E test for CSV export functionality",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["G.7"],
+      "retryCount": 0
+    },
+    {
+      "id": "H.5",
+      "description": "Configure CI scripts and verify all tests pass",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["H.1", "H.2", "H.3", "H.4"],
+      "retryCount": 0
+    },
+    {
+      "id": "I.1",
+      "description": "Create About/Fontes page with license and source information",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["H.5"],
+      "retryCount": 0
+    },
+    {
+      "id": "I.2",
+      "description": "Implement rate limiting for search/autocomplete endpoints",
+      "estimatedTime": "8min",
+      "status": "pending",
+      "dependencies": ["H.5"],
+      "retryCount": 0
+    },
+    {
+      "id": "I.3",
+      "description": "Add header protection to /api/health endpoint",
+      "estimatedTime": "3min",
+      "status": "pending",
+      "dependencies": ["H.5"],
+      "retryCount": 0
+    },
+    {
+      "id": "I.4",
+      "description": "Validate log format in development and test error injection",
+      "estimatedTime": "5min",
+      "status": "pending",
+      "dependencies": ["I.1", "I.2", "I.3"],
+      "retryCount": 0
+    },
+    {
+      "id": "I.5",
+      "description": "Perform full dry-run: IF.Data cron, COSIF cron, compute cron, verify UI updates",
+      "estimatedTime": "10min",
+      "status": "pending",
+      "dependencies": ["I.4"],
+      "retryCount": 0
+    }
+  ]
+}

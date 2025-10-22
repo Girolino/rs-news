@@ -1,0 +1,18 @@
+{
+  "library": "zod",
+  "displayName": "Zod",
+  "generated_at": "2025-10-22T14:18:02.708Z",
+  "total_docs": 59,
+  "total_directories": 2,
+  "sections": {
+    "introduction": 2,
+    "basic-usage": 4,
+    "primitives": 13,
+    "complex-types": 16,
+    "refinements": 5,
+    "error-handling": 4,
+    "advanced": 7,
+    "utilities": 6,
+    "integration": 2
+  }
+}

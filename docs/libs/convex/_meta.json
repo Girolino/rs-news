@@ -1,0 +1,17 @@
+{
+  "library": "convex",
+  "displayName": "Convex",
+  "generated_at": "2025-10-22T14:18:01.261Z",
+  "total_docs": 42,
+  "total_directories": 10,
+  "sections": {
+    "getting-started": 4,
+    "database": 8,
+    "functions": 8,
+    "client-libraries": 7,
+    "authentication": 5,
+    "file-storage": 4,
+    "scheduling": 2,
+    "production": 4
+  }
+}

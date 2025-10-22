@@ -1,0 +1,43 @@
+---
+title: "next.config.js"
+url: https://nextjs.org/docs/app/api-reference/next-config-js
+category: app/api-reference
+section: api-reference
+fetched: false
+last_updated: 2025-10-22T14:17:59.864Z
+---
+
+# next.config.js
+
+> **Note:** This file is a placeholder. Content needs to be fetched from https://nextjs.org/docs/app/api-reference/next-config-js
+>
+> Use `npm run fetch-docs -- --lib=nextjs --file=<filepath>` to populate this file with actual documentation content.
+
+## Quick Reference
+
+- **URL:** [https://nextjs.org/docs/app/api-reference/next-config-js](https://nextjs.org/docs/app/api-reference/next-config-js)
+- **Category:** app → api-reference
+- **Section:** api-reference
+
+## Placeholder Content
+
+This documentation file is part of the Next.js 16 documentation structure.
+The actual content will be fetched and populated automatically.
+
+To fetch the content now, run:
+
+```bash
+npm run fetch-docs -- --lib=nextjs --file=docs/libs/nextjs/app/api-reference/next-config-js.md
+```
+
+Or fetch all documentation:
+
+```bash
+npm run fetch-docs -- --lib=nextjs --all
+```
+
+Or fetch this specific section:
+
+```bash
+npm run fetch-docs -- --lib=nextjs --section=api-reference
+```
