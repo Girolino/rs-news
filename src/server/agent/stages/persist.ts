@@ -16,6 +16,8 @@ export async function runPersistStage(records: StoredNewsRecord[]) {
         title: record.finalTitle,
         url: record.url,
         companies: record.companies,
+        topic: record.topic,
+        tags: record.tags,
         timestamp: record.publishedAt,
         score: record.relevanceScore,
         telegramMessageId: record.telegramMessageId,

@@ -25,7 +25,8 @@ const sample: StructuredNewsItem = {
       associatedBullet: 1,
     },
   ],
-  hashtags: ["#B3", "#PETR4"],
+  topic: "empresas",
+  tags: ["PETR4"],
   summaryForSearch: "Petrobras divulga resultados fortes",
   publishedAt: new Date().toISOString(),
   body: "Petrobras anunciou resultados positivos com lucro líquido em alta e incremento de investimentos.".repeat(2),
@@ -43,7 +44,9 @@ describe("telegram formatter", () => {
   it("builds HTML with escaped characters", () => {
     expect(messageHtml).toContain("<b>Petrobras anuncia resultado recorde</b>");
     expect(messageHtml).toContain("<a href=");
-    expect(messageHtml).toContain("#PETR4");
+    expect(messageHtml).toContain("PETR4");
+    expect(messageHtml).toContain("📌 Assunto");
+    expect(messageHtml).toContain("🏷️ Tags");
   });
 
   it("deduplicates citations by URL", () => {

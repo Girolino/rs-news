@@ -347,7 +347,8 @@ async function main() {
         summarizeResult.items.forEach((item, i) => {
           logInfo(`  ${i + 1}. ${item.finalTitle}`);
           logInfo(`     Resumo: ${item.summary.substring(0, 80)}...`);
-          logInfo(`     Bullets: ${item.bullets.length}, Citations: ${item.citations.length}, Hashtags: ${item.hashtags.join(' ')}`);
+          const tagsPreview = item.tags.length > 0 ? item.tags.join(", ") : "N/D";
+          logInfo(`     Bullets: ${item.bullets.length}, Citations: ${item.citations.length}, Assunto: ${item.topic}, Tags: ${tagsPreview}`);
         });
       } else {
         logWarning("Summarize não gerou nenhum resumo");

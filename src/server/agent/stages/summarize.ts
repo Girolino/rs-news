@@ -3,6 +3,7 @@ import { buildSummarizePrompt } from "@/server/services/ai/prompts";
 import { runGenerateObject } from "@/server/services/ai/gateway";
 import { getModelName } from "@/lib/ai/models";
 import {
+  newsTopicSchema,
   structuredNewsItemSchema,
   type RerankedNewsItem,
   type StructuredNewsItem,
@@ -22,7 +23,8 @@ const summarizeResponseSchema = z.object({
       associatedBullet: z.number(),
     }),
   ),
-  hashtags: z.array(z.string()),
+  topic: newsTopicSchema,
+  tags: z.array(z.string()),
   summary_for_search: z.string(),
 });
 
@@ -58,8 +60,16 @@ export async function runSummarizeStage(
           ...citation,
           quote: citation.quote.trim(),
         })),
-        hashtags: response.hashtags.map((hashtag) =>
-          hashtag.startsWith("#") ? hashtag.toUpperCase() : `#${hashtag.toUpperCase()}`,
+        topic: response.topic,
+        tags: Array.from(
+          new Set(
+            response.tags
+              .map((tag) => tag.trim())
+              .map((tag) => (tag.startsWith("#") ? tag.slice(1) : tag))
+              .map((tag) => tag.toUpperCase())
+              .map((tag) => tag.replace(/[^A-Z0-9.]/g, ""))
+              .filter((tag) => tag.length > 0),
+          ),
         ),
         summaryForSearch: response.summary_for_search.trim(),
       });

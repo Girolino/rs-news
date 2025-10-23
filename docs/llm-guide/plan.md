@@ -178,7 +178,7 @@ Adiciona carimbo de data/hora (BRT/BRST) na saída.
 
 Editor de Estilo / Formatação Telegram
 
-Gera mensagem em HTML com: título, bullets, empresas/tickers, timestamp, [Fontes] (1–3 links), hashtags.
+Gera mensagem em HTML com: título, bullets, assunto (enum fixo), tags (tickers), timestamp, [Fontes] (1–3 links).
 
 Inline keyboard: [Fontes], [Similares] (link para página interna opcional).
 
@@ -234,21 +234,21 @@ Título (negrito via <b>), timestamp (BRT/BRST).
 
 3–5 bullets objetivos (cada um uma evidência).
 
-Empresas/Tickers: PETR4, VALE3, ...
+Assunto: enum {Economia, Política, Empresas, Mercados, Tecnologia}.
+
+Tags: até 3 tickers em maiúsculo (ex.: PETR4, VALE3, AAPL). Quando não houver, usar “N/D”.
 
 Fontes: até 3, com nomes de domínio (ex.: [CVM], [RI Petrobras], [B3]).
 
-Hashtags: 3–6 (setor, tema, empresa).
-
 Ex.:
 
-<b>Petrobras anuncia capex revisado 2025–2029</b> — 22 out 2025, 10:07 BRT
-• Diretriz de investimento sobe X% vs. plano anterior; foco em E&P pré-sal.
-• Guidance de produção mantido; janela de desinvestimentos revista.
-• Conselho aprova dividendos intermediários condicionados a alavancagem.
-Empresas: PETR4, PETR3
+<b>Petrobras revisa capex 2025–2029</b> — 22 out 2025, 10:07 BRT
+• Investimento projetado sobe X% versus plano anterior, focando no pré-sal.
+• Guidance de produção permanece estável; cronograma de desinvestimentos é ajustado.
+• Conselho mantém política de dividendos condicionada ao limite de alavancagem.
+📌 Assunto: Empresas
+🏷️ Tags: PETR4, PETR3
 Fontes: [RI Petrobras](https://...), [CVM](https://...)
-#petr4 #oilandgas #capex #b3
 
 9) Métricas de Qualidade
 
@@ -328,7 +328,7 @@ Rank calcula relevanceScore; filtra por limiar (≥7).
 
 Write (LLM frontier) redige resumo + bullets; Check revalida cada bullet contra o contexto bruto e URLs.
 
-Format converte para HTML com fontes/hashtags.
+Format converte para HTML com assunto/tags/fontes.
 
 Idempotency: checa idempotency:fingerprint. Se novo, envia Telegram; se já visto nas últimas 48h, descarta.
 

@@ -73,7 +73,8 @@ Requirements:
 - Each bullet must reference one citation
 - IMPORTANT: associatedBullet is ZERO-INDEXED (first bullet = 0, second bullet = 1, third bullet = 2)
 - Cite only URLs provided
-- Include 2-4 relevant hashtags (uppercase, no accents)
+- Set a topic (one of: economia, politica, empresas, mercados, tecnologia)
+- Provide up to 3 tags using uppercase tickers only (e.g., PETR4, VALE3, AAPL). Do NOT include hashtags (#) or free text. Return an empty array if no ticker applies.
 
 Example citations for 3 bullets:
 - { "associatedBullet": 0, ... } // references first bullet

@@ -12,6 +12,14 @@ export function escapeHtml(input: string): string {
   return input.replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char]);
 }
 
+const TOPIC_LABELS: Record<StructuredNewsItem["topic"], string> = {
+  economia: "Economia",
+  politica: "Política",
+  empresas: "Empresas",
+  mercados: "Mercados",
+  tecnologia: "Tecnologia",
+};
+
 export function buildTelegramMessage(news: StructuredNewsItem): string {
   const bullets = news.bullets
     .map((bullet) => `• ${escapeHtml(bullet)}`)
@@ -32,13 +40,10 @@ export function buildTelegramMessage(news: StructuredNewsItem): string {
     )
     .join("\n");
 
-  const companies =
-    news.companies.length > 0 ? news.companies.join(", ") : "N/D";
+  const topicLabel = TOPIC_LABELS[news.topic] ?? news.topic;
 
-  const hashtags =
-    news.hashtags.length > 0
-      ? news.hashtags.join(" ")
-      : "#ECONOMIA #B3 #MERCADO";
+  const tags =
+    news.tags.length > 0 ? news.tags.join(", ") : "N/D";
 
   return [
     `🔔 <b>${escapeHtml(news.finalTitle)}</b>`,
@@ -48,12 +53,11 @@ export function buildTelegramMessage(news: StructuredNewsItem): string {
     `<b>Principais Pontos:</b>`,
     bullets,
     "",
-    `<b>📈 Empresas:</b> ${escapeHtml(companies)}`,
+    `<b>📌 Assunto:</b> ${escapeHtml(topicLabel)}`,
+    `<b>🏷️ Tags:</b> ${escapeHtml(tags)}`,
     "",
     `<b>🔗 Fontes:</b>`,
     sources,
-    "",
-    hashtags,
   ]
     .filter((section) => section !== "")
     .join("\n");

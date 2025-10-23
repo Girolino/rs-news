@@ -134,7 +134,8 @@ Requirements:
 - Each bullet must reference one citation
 - IMPORTANT: associatedBullet is ZERO-INDEXED (first bullet = 0, second bullet = 1, third bullet = 2)
 - Cite only URLs provided
-- Include 2-4 relevant hashtags (uppercase, no accents)
+- Set a topic (economia, politica, empresas, mercados, tecnologia)
+- Provide up to 3 tags with uppercase tickers only (e.g. PETR4, VALE3, AAPL). No hashtags.
 
 Example citations for 3 bullets:
 - { "associatedBullet": 0, ... } // references first bullet
@@ -240,7 +241,8 @@ searchIndex().search({
     { "associatedBullet": 1, "url": "...", "title": "...", "quote": "..." },
     { "associatedBullet": 2, "url": "...", "title": "...", "quote": "..." }
   ],
-  "hashtags": ["#IBOV", "#BOLSA"]
+  "topic": "mercados",
+  "tags": ["IBOV"]
 }
 ```
 

@@ -64,7 +64,8 @@ const structuredItem: StructuredNewsItem = {
       associatedBullet: 1,
     },
   ],
-  hashtags: ["#PETR4"],
+  topic: "empresas",
+  tags: ["PETR4"],
   summaryForSearch: "Investimento da Petrobras aumenta produção.",
 };
 

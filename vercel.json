@@ -2,7 +2,8 @@
   "crons": [
     {
       "path": "/api/cron/news-agent",
-      "schedule": "0 * * * *"
+      "schedule": "0 6-20 * * 1-5",
+      "timezone": "America/Sao_Paulo"
     }
   ],
   "functions": {

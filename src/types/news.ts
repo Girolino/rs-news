@@ -22,6 +22,16 @@ export const newsImpactSchema = z.enum(["alta", "média", "baixa"]);
 
 export type NewsImpact = z.infer<typeof newsImpactSchema>;
 
+export const newsTopicSchema = z.enum([
+  "economia",
+  "politica",
+  "empresas",
+  "mercados",
+  "tecnologia",
+]);
+
+export type NewsTopic = z.infer<typeof newsTopicSchema>;
+
 export const rerankedNewsItemSchema = prefilteredNewsItemSchema.extend({
   relevanceScore: z.number().min(0).max(10),
   impact: newsImpactSchema,
@@ -46,7 +56,18 @@ export const structuredNewsItemSchema = rerankedNewsItemSchema.extend({
   summary: z.string().min(1).max(200),
   bullets: z.array(z.string().min(1)).min(1),
   citations: z.array(citationSchema).min(1),
-  hashtags: z.array(z.string().startsWith("#").min(2)).default([]),
+  topic: newsTopicSchema,
+  tags: z
+    .array(
+      z
+        .string()
+        .regex(/^[A-Z0-9]{1,7}(?:\.[A-Z0-9]{1,3})?$/, {
+          message:
+            "tags must be uppercase tickers, e.g. PETR4 or AAPL or ITUB4.SA",
+        })
+        .min(1),
+    )
+    .default([]),
   summaryForSearch: z.string().min(1),
 });
 

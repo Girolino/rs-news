@@ -10,9 +10,9 @@ vi.mock("@/config/env", () => ({
 }));
 
 vi.mock("@/server/services/storage/search", () => ({
-  searchIndex: {
+  searchIndex: vi.fn(() => ({
     search: (...args: unknown[]) => searchMock(...args),
-  },
+  })),
 }));
 
 import { runDedupStage } from "@/server/agent/stages/dedup";
