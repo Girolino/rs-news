@@ -134,7 +134,7 @@ src/
 
 ```bash
 
-git add .; git commit -m 'v 0.01.09 bump: next16'; git push origin main
+git add .; git commit -m 'v 0.01.10 chore: triggerdev install'; git push origin main
 git reset --hard; git clean -fd; git checkout dev-branch; git pull origin dev-branch
 git reset --hard c2366a1
 git push --force origin dev-branch
