@@ -6,7 +6,7 @@ Single source of truth for large-language-model agents contributing to the RS Ne
 
 ## 1. Product & Domain Snapshot
 - **Goal:** deliver concise, citation-backed summaries of Brazilian macroeconomic and corporate news (Portuguese) to a Telegram channel.
-- **Cadence:** scheduled hourly (06:00–20:00, Monday–Friday, America/Sao_Paulo) via Vercel cron hitting `/api/cron/news-agent`.
+- **Cadence:** scheduled hourly (06:00–19:00, Monday–Friday, America/Sao_Paulo) via Trigger.dev task `news-orchestrator`.
 - **Tone & language:** outputs are in Brazilian Portuguese; ticker tags are uppercase without `#`.
 - **Primary sources:** OpenAI web search constrained to a curated allowlist (Valor, Infomoney, Estadão, CVM, BCB, Reuters, etc.). Stick to verifiable sources—no paywalled or speculative content.
 - **Hard constraints:** no dedicated news API, RSS feed, Postgres, or Sentry. Prioritise retrieve-then-generate workflows with deterministic citations.
@@ -24,6 +24,64 @@ The current Next.js 16 App Router UI is intentionally minimal and unauthenticate
 ---
 
 ## 3. System Architecture Overview
+
+### Current Architecture (Trigger.dev v4)
+
+```
+Trigger.dev Scheduled Task (newsOrchestratorTask)
+   Schedule: Mon-Fri 6h-19h (America/Sao_Paulo)
+   Lock: Redis cron:news:lock (single-flight, 10 min TTL)
+   Machine: medium-1x (1 vCPU, 2 GB RAM)
+          │
+          ▼
+┌──────────────────────────────────────────────────────────┐
+│ Orchestrator Task: trigger/orchestrator.task.ts         │
+│   1. Discovery   →  runDiscoveryStage (LLM + web search) │
+│   2. Prefilter   →  runPrefilterStage (heuristics)       │
+│   3. Rerank      →  runRerankStage (LLM scoring)         │
+│   4. Dedup       →  runDedupStage (Upstash Search)       │
+│   5. Batch Trigger → newsSenderTask (with delays)        │
+└──────────────────────────────────────────────────────────┘
+          │
+          ▼ (batch trigger with incremental delays)
+┌──────────────────────────────────────────────────────────┐
+│ News Sender Task: trigger/sender.task.ts                │
+│ Queue: concurrencyLimit=1 (one at a time)               │
+│ Machine: small-1x (0.5 vCPU, 0.5 GB RAM)                │
+│   1. Wait        →  wait.for (2-5 min random delay, cap 30m) │
+│   2. Summarize   →  runSummarizeStage (LLM structured)   │
+│   3. Format      →  runFormatStage (Telegram HTML)       │
+│   4. Send        →  sendTelegramMessage (with retry)     │
+│   5. Persist     →  runPersistStage (Redis + Search)     │
+└──────────────────────────────────────────────────────────┘
+          │
+          ▼
+Telegram channel + Upstash persistence
+```
+
+Key runtime characteristics:
+- **Orchestrator**: ~2-3 minutes execution (discovery dominates), runs hourly during business hours
+- **Sender**: ~30-60 seconds per news item (excluding 2-5 min waits, capped at 30m), processes one news at a time
+- **Delays**: 2-5 minute random waits between news (capped at 30 minutes cumulative) simulate human curation (waits > 5s don't count for compute)
+- **Concurrency**: Queue with `concurrencyLimit=1` ensures sequential delivery
+- **Retry**: Automatic retry (3 attempts) for transient Telegram failures
+- **Structured logs**: JSON logs via `src/server/lib/logger.ts`; last run metadata stored at `agent:news:last_run`
+- **Locking**: Redis distributed lock (`cron:news:lock`) prevents overlapping orchestrator runs
+- **Observability**: Full run history, logs, and metrics available in Trigger.dev dashboard
+
+### Why Trigger.dev?
+
+Two main problems solved:
+
+1. **Timezone reliability**: Vercel cron had issues respecting `America/Sao_Paulo` timezone. Trigger.dev has native IANA timezone support.
+
+2. **UX improvement**: Previously, all news were sent simultaneously to Telegram (robot-like "vomiting"). Now they're sent sequentially with random 2-5 minute delays, simulating human curation.
+
+### Legacy Architecture (Deprecated)
+
+<details>
+<summary>Click to see legacy Vercel Cron architecture (deprecated Nov 2025)</summary>
+
 ```
 Vercel Cron (0 6-20 * * 1-5, BRT)
           │
@@ -47,10 +105,9 @@ Next.js API route /api/cron/news-agent (Node runtime, 800s max)
 Telegram channel + Upstash persistence
 ```
 
-Key runtime characteristics:
-- Execution time observed in smoke/E2E tests ~7 minutes with generous buffer versus Vercel’s 15-minute cap.
-- Single-flight enforced by Redis distributed lock (`cron:news:lock`, 10-minute TTL).
-- Structured logs (JSON) emitted by `src/server/lib/logger.ts`; last run metadata stored at `agent:news:last_run`.
+**Note**: The legacy API route `/api/cron/news-agent` still exists but is no longer called by Vercel cron. The Vercel cron configuration is disabled in `vercel.json`. The route can still be manually triggered if needed.
+
+</details>
 
 ---
 
@@ -156,19 +213,32 @@ Validation is enforced via Zod and `validateCitations`. Any deviation will break
 | **Upstash Redis** | Locks, persistence (`sent_news:*` keys) | `services/storage/redis.ts` | Also stores last run metadata and retry state. |
 | **Upstash Search** | Deduplication & search index | `services/storage/search.ts` | Index name defaults to `news-br`. |
 | **Telegram Bot API** | Delivery channel | `services/telegram/client.ts` | HTML parse mode with previews disabled. |
-| **Vercel Cron** | Scheduling | `vercel.json` | Cron window: hourly 06–20 Monday–Friday BRT. |
+| **Trigger.dev** | Task orchestration & scheduling | `trigger/*.ts`, `trigger.config.ts` | Scheduled tasks with IANA timezone support, queues, retries. |
+| **Vercel Cron** _(deprecated)_ | Scheduling | `vercel.json` _(disabled)_ | Replaced by Trigger.dev scheduled tasks. |
 
 ### Environment Variables
 ```bash
+# OpenAI
 OPENAI_API_KEY=sk-…                # Required
+
+# Upstash
 UPSTASH_REDIS_REST_URL=…           # Required
 UPSTASH_REDIS_REST_TOKEN=…         # Required
 UPSTASH_SEARCH_REST_URL=…          # Required
 UPSTASH_SEARCH_REST_TOKEN=…        # Required
 UPSTASH_SEARCH_INDEX=news-br       # Optional override
+
+# Telegram
 TELEGRAM_BOT_TOKEN=…               # Required
 TELEGRAM_CHAT_ID=@channel-or-id    # Required
-CRON_SECRET=…                      # Optional bearer token for cron/admin
+
+# Trigger.dev
+TRIGGER_PROJECT_REF=…              # Required for Trigger.dev
+TRIGGER_API_KEY=…                  # Required for Trigger.dev
+TRIGGER_API_URL=…                  # Optional (defaults to https://api.trigger.dev)
+
+# Configuration
+CRON_SECRET=…                      # Optional bearer token for legacy cron/admin routes
 MAX_NEWS_PER_RUN=10                # Optional override
 RELEVANCE_THRESHOLD=7              # Optional override
 DEDUP_SIMILARITY_THRESHOLD=0.9     # Optional override
@@ -179,29 +249,103 @@ NODE_ENV=production                # Set by platform
 
 ## 8. Operational Runbooks
 
-### 8.1 Deploying to Vercel
-1. Ensure environment variables above are populated in Vercel project settings.
+### 8.1 Deploying to Trigger.dev
+**Current deployment method (as of Nov 2025):**
+
+1. **Setup Trigger.dev Project**
+   - Create account at https://cloud.trigger.dev
+   - Create new project
+   - Note down `TRIGGER_PROJECT_REF` and `TRIGGER_API_KEY`
+
+2. **Configure Environment Variables**
+   - In Trigger.dev dashboard: Settings → Environment Variables
+   - Add all required vars (OpenAI, Upstash, Telegram)
+   - Configure for desired environments (Dev, Staging, Production)
+
+3. **Deploy Tasks**
+   ```bash
+   # Login (first time only)
+   npm run trigger:login
+
+   # Deploy to staging
+   npm run trigger:deploy --env staging
+
+   # Deploy to production (after validation)
+   npm run trigger:deploy --env production
+   ```
+
+4. **Post-deploy Validation**
+   - Check Trigger.dev dashboard → Tasks
+   - Verify `news-orchestrator` and `news-sender` appear
+   - Check Schedules are enabled
+   - Test manually: Dashboard → Tasks → Test
+   - Monitor first scheduled run
+   - Verify Telegram channel delivery
+
+**See full deployment guide:** `docs/trigger-dev-deployment-guide.md`
+
+### 8.2 Deploying to Vercel _(legacy - for Next.js app only)_
+The Next.js app (frontend, API routes, tRPC) still deploys to Vercel:
+
+1. Ensure environment variables are populated in Vercel project settings.
 2. Confirm `OPENAI_API_KEY` tier supports web search for `gpt-5-mini`.
 3. Deploy via CI or `vercel deploy`.
 4. Post-deploy validation:
-   - Trigger manual run: `curl -X POST https://<host>/api/cron/news-agent -H "Authorization: Bearer $CRON_SECRET"`.
-   - Monitor Vercel logs for `agent.run.complete`.
-   - Verify Telegram channel delivery.
+   - Test API routes if needed
+   - Legacy cron route can be manually triggered: `curl -X POST https://<host>/api/cron/news-agent -H "Authorization: Bearer $CRON_SECRET"`
 
-### 8.2 Manual Retries
+### 8.3 Manual Retries
 - Endpoint: `POST /api/admin/retry-failed` (same Bearer auth as cron).
 - Behaviour: scans Redis `sent_news:*`, filters `failedToSend === true`, replays messages, upserts successful retries into Upstash Search.
 - Use after transient Telegram outages; safe to call multiple times.
 
-### 8.3 Lock & Concurrency Handling
-- If `runNewsAgent` detects an existing lock, it throws `AgentAlreadyRunningError`; cron route returns HTTP 200 with `{ status: "skipped" }`.
-- tRPC mutation `news.runAgent` mirrors this behaviour (skip unless `force` param is introduced in future).
+### 8.4 Monitoring & Debugging
 
-### 8.4 Cost Envelope (Oct 2025 Measurements)
-- OpenAI per execution: \$0.10–\$0.17 (discovery dominates).
-- Monthly estimate (~88 weekday executions): \$80–\$135.
-- Upstash (Redis & Search): stays within free tier under current volume.
-- Vercel Pro plan required for cron (~\$20/month).
+**Trigger.dev Dashboard:**
+- **Runs**: View all task executions, filter by status, task, environment
+- **Logs**: Structured JSON logs with full context
+- **Metrics**: Duration, costs, success/failure rates
+- **Schedules**: Next runs, enable/disable schedules
+
+**Local Development:**
+```bash
+# Start Trigger.dev dev server
+npm run trigger:dev
+
+# In dashboard (usually http://localhost:3040), test tasks manually
+```
+
+**Troubleshooting:**
+- Failed runs: Check logs in Trigger.dev dashboard
+- Schedules not running: Verify enabled, correct environment, latest deployment
+- Sender tasks stuck: Check queue status, concurrency limits
+- High costs: Review machine sizes, task durations, optimize discovery
+
+### 8.5 Legacy Lock & Concurrency Handling _(deprecated)_
+- The legacy orchestrator used Redis distributed locks (`cron:news:lock`)
+- Trigger.dev tasks have built-in concurrency control via queues
+- If manually triggering legacy route: `runNewsAgent` throws `AgentAlreadyRunningError` if lock exists
+
+### 8.6 Cost Envelope (Nov 2025 Estimates)
+
+**OpenAI:**
+- Per orchestrator run: \$0.10–\$0.17 (discovery dominates)
+- Monthly (~68 runs: Mon-Fri 14h/day, Sat 5h/day): \$65–\$115
+
+**Trigger.dev:**
+- Orchestrator task: ~\$5–10/month (medium-1x, ~2-3 min/run)
+- Sender tasks: ~\$5–15/month (small-1x, ~30-60s/news, waits don't count)
+- Total Trigger.dev: ~\$10–25/month
+
+**Upstash:**
+- Redis & Search: stays within free tier under current volume
+
+**Vercel:**
+- Pro plan: ~\$20/month (for Next.js app hosting, not cron)
+
+**Total Monthly Cost:** ~\$95–\$175/month (vs ~\$100–\$155 with Vercel cron)
+
+**Note:** Waits > 5 seconds don't count for Trigger.dev compute, so the 2-5 minute delays between news are free.
 
 ---
 
@@ -260,11 +404,11 @@ src/
     page.tsx                   # Static home page listing endpoints
     layout.tsx                 # Root layout & fonts
     api/
-      cron/news-agent/route.ts # Vercel cron entrypoint
+      cron/news-agent/route.ts # Legacy cron entrypoint (deprecated, still works for manual trigger)
       admin/retry-failed/...   # Retry failed Telegram sends
       trpc/[trpc]/route.ts     # tRPC adapter
   server/
-    agent/                     # Orchestrator + pipeline stages
+    agent/                     # Legacy orchestrator + pipeline stages (stages still used by Trigger.dev)
     api/                       # tRPC router & root
     lib/                       # Lock, hash, logger, retry helpers
     services/
@@ -272,8 +416,19 @@ src/
       storage/                 # Redis & Upstash Search connectors
       telegram/                # Client + formatter
   types/                       # Shared Zod schemas
+
+trigger/                       # Trigger.dev tasks (v4)
+  index.ts                     # Task exports
+  types.ts                     # Task payload schemas
+  orchestrator.task.ts         # Scheduled orchestrator (discovery → dedup)
+  sender.task.ts               # Queue-based sender (summarize → send)
+
+trigger.config.ts              # Trigger.dev configuration
 scripts/                       # Smoke & debug scripts
-docs/llm-guide/rs-news-llm-handbook.md  # ← this document
+docs/
+  llm-guide/
+    rs-news-llm-handbook.md    # ← this document
+  trigger-dev-deployment-guide.md  # Trigger.dev deployment guide
 ```
 
 ---
@@ -292,12 +447,18 @@ npm run test
 # Smoke test pipeline (mocked send/persist)
 npm run test:e2e
 
-# Start dev server
+# Start Next.js dev server
 npm run dev
+
+# Trigger.dev commands
+npm run trigger:login          # Login to Trigger.dev (first time)
+npm run trigger:dev            # Start Trigger.dev dev server
+npm run trigger:deploy         # Deploy tasks to production
+npm run trigger:deploy --env staging  # Deploy to staging
 ```
 
 ---
 
 ## 14. Change Log
-- **03 Nov 2025:** Consolidated Portuguese guides into this English handbook; captured current UI state (no authenticated area) and reiterated pipeline/tuning backlog.
-
+- **03 Nov 2025 (Evening):** Migrated from Vercel Cron to Trigger.dev v4. Split orchestrator into two tasks: scheduled orchestrator (discovery→dedup) and queue-based sender (summarize→send) with 2-5 min delays. Solves timezone issues and improves UX by delivering news sequentially. Added `trigger/` directory, `trigger.config.ts`, and deployment guide.
+- **03 Nov 2025 (Morning):** Consolidated Portuguese guides into this English handbook; captured current UI state (no authenticated area) and reiterated pipeline/tuning backlog.

@@ -12,10 +12,14 @@
     "test:coverage": "vitest run --coverage",
     "smoke:ai": "node --import=tsx --import=dotenv/config scripts/llm-smoke.ts",
     "test:discovery": "node --import=tsx --import=dotenv/config scripts/test-discovery.ts",
-    "test:e2e": "node --import=tsx --import=dotenv/config scripts/smoke-e2e.ts"
+    "test:e2e": "node --import=tsx --import=dotenv/config scripts/smoke-e2e.ts",
+    "trigger:dev": "npx trigger.dev dev",
+    "trigger:deploy": "npx trigger.dev deploy",
+    "trigger:login": "npx trigger.dev login"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.53",
+    "@trigger.dev/sdk": "^4.0.5",
     "@trpc/client": "^11.6.0",
     "@trpc/next": "^11.6.0",
     "@trpc/react-query": "^11.6.0",

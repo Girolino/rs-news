@@ -134,7 +134,10 @@ src/
 
 ```bash
 
-git add .; git commit -m 'v 0.01.10 chore: triggerdev install'; git push origin main
+
+npm run trigger:deploy -- --env prod
+
+git add .; git commit -m 'v 0.01.11 chore: triggerdev docs'; git push origin main
 git reset --hard; git clean -fd; git checkout dev-branch; git pull origin dev-branch
 git reset --hard c2366a1
 git push --force origin dev-branch

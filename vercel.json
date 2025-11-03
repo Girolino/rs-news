@@ -1,5 +1,6 @@
 {
-  "crons": [
+  "_comment": "Vercel cron desativado - agora usando Trigger.dev scheduled tasks",
+  "_crons_disabled": [
     {
       "path": "/api/cron/news-agent",
       "schedule": "0 6-20 * * 1-5",
