@@ -8,6 +8,7 @@
 // Exporta as tasks
 export { newsOrchestratorTask } from "./orchestrator.task";
 export { newsSenderTask } from "./sender.task";
+export { newsDailyReportTask } from "./monitoring.task";
 
 // Exporta os tipos para uso externo
 export type {

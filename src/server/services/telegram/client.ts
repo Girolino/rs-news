@@ -3,8 +3,12 @@ import { loadEnv } from "@/config/env";
 import {
   telegramSendMessagePayloadSchema,
   telegramSendMessageResponseSchema,
+  telegramSendPhotoPayloadSchema,
+  telegramSendPhotoResponseSchema,
   type TelegramSendMessagePayload,
   type TelegramSendMessageResponse,
+  type TelegramSendPhotoPayload,
+  type TelegramSendPhotoResponse,
 } from "@/types/telegram";
 
 // Lazy initialization
@@ -47,6 +51,41 @@ export async function sendTelegramMessage(
 ) {
   return pRetry(
     () => sendMessageOnce(payload),
+    {
+      retries: 2,
+      factor: 2,
+      minTimeout: 1000,
+    },
+  );
+}
+
+async function sendPhotoOnce(
+  payload: TelegramSendPhotoPayload,
+): Promise<TelegramSendPhotoResponse> {
+  const body = telegramSendPhotoPayloadSchema.parse(payload);
+
+  const response = await fetch(`${getTelegramBaseUrl()}/sendPhoto`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorPayload = await response.text();
+    throw new Error(
+      `Telegram API error: ${response.status} ${response.statusText} - ${errorPayload}`,
+    );
+  }
+
+  const json = await response.json();
+  return telegramSendPhotoResponseSchema.parse(json);
+}
+
+export async function sendTelegramPhoto(payload: TelegramSendPhotoPayload) {
+  return pRetry(
+    () => sendPhotoOnce(payload),
     {
       retries: 2,
       factor: 2,

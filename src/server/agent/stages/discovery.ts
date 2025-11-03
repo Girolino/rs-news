@@ -22,8 +22,8 @@ const structuredNewsSchema = z.object({
   news: z.array(newsItemSchema),
 });
 
-// Tópicos de busca para notícias brasileiras
-const SEARCH_TOPICS = [
+// Tópicos base de busca para notícias brasileiras
+const BASE_SEARCH_TOPICS = [
   "notícias empresas brasileiras B3 hoje",
   "resultados trimestrais empresas brasileiras",
   "Selic BCB decisão Copom",
@@ -31,6 +31,20 @@ const SEARCH_TOPICS = [
   "fusões aquisições empresas Brasil",
   "fatos relevantes B3 CVM",
 ];
+
+function parseDynamicTopics(raw: string | undefined): string[] {
+  if (!raw) {
+    return [];
+  }
+  return Array.from(
+    new Set(
+      raw
+        .split(/[\n;,|]+/)
+        .map((topic) => topic.trim())
+        .filter((topic) => topic.length > 0),
+    ),
+  );
+}
 
 // Domínios confiáveis para notícias financeiras Brasil
 const DOMAIN_WHITELIST = [
@@ -47,13 +61,33 @@ const DOMAIN_WHITELIST = [
   "bcb.gov.br",
 ];
 
-export async function runDiscoveryStage(): Promise<DiscoveryNewsItem[]> {
+type DiscoveryOptions = {
+  additionalTopics?: string[];
+  whitelist?: string[];
+};
+
+export async function runDiscoveryStage(
+  options?: DiscoveryOptions,
+): Promise<DiscoveryNewsItem[]> {
+  const env = loadEnv();
+  const dynamicTopics = parseDynamicTopics(env.DISCOVERY_DYNAMIC_TOPIC);
+  const optionTopics = options?.additionalTopics ?? [];
+  const allTopics = Array.from(
+    new Set([...BASE_SEARCH_TOPICS, ...dynamicTopics, ...optionTopics]),
+  );
+
+  const whitelist = Array.from(
+    new Set([...DOMAIN_WHITELIST, ...(options?.whitelist ?? [])]),
+  );
+
   logger.info("stage.discovery.start", {
-    topics: SEARCH_TOPICS.length,
-    whitelist: DOMAIN_WHITELIST.length,
+    topics: allTopics.length,
+    baseTopics: BASE_SEARCH_TOPICS.length,
+    dynamicTopics: dynamicTopics.length,
+    extraTopics: optionTopics.length,
+    whitelist: whitelist.length,
   });
 
-  const env = loadEnv();
   const openai = createOpenAI({
     apiKey: env.OPENAI_API_KEY,
   });
@@ -68,7 +102,7 @@ export async function runDiscoveryStage(): Promise<DiscoveryNewsItem[]> {
         "Critérios de seleção:",
         "- Priorize notícias sobre empresas listadas na B3, indicadores macro (Selic, IPCA, PIB), e fatos relevantes (M&A, resultados, dividendos).",
         "- APENAS aceite notícias dos seguintes domínios confiáveis:",
-        ...DOMAIN_WHITELIST.map((d) => `  * ${d}`),
+        ...whitelist.map((d) => `  * ${d}`),
         "",
         "Para cada notícia relevante, forneça:",
         "- Título completo",
@@ -79,7 +113,7 @@ export async function runDiscoveryStage(): Promise<DiscoveryNewsItem[]> {
       ].join("\n"),
       prompt: [
         "Execute buscas sobre os seguintes tópicos:",
-        ...SEARCH_TOPICS.map((topic, i) => `${i + 1}. ${topic}`),
+        ...allTopics.map((topic, i) => `${i + 1}. ${topic}`),
         "",
         "Para cada tópico, encontre 2-3 notícias mais relevantes das últimas 12-24 horas.",
         "Liste as notícias com todas as informações solicitadas.",
@@ -143,7 +177,7 @@ export async function runDiscoveryStage(): Promise<DiscoveryNewsItem[]> {
         const urlObj = new URL(item.url);
         const domain = urlObj.hostname.replace("www.", "");
 
-        if (!DOMAIN_WHITELIST.some((d) => domain.includes(d) || d.includes(domain))) {
+        if (!whitelist.some((d) => domain.includes(d) || d.includes(domain))) {
           logger.debug("stage.discovery.domain_not_whitelisted", {
             url: item.url,
             domain,
@@ -174,6 +208,7 @@ export async function runDiscoveryStage(): Promise<DiscoveryNewsItem[]> {
     logger.info("stage.discovery.complete", {
       total: news.length,
       structured: structured.news.length,
+      dynamicTopicsUsed: dynamicTopics,
     });
 
     return news;

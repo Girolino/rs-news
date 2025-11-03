@@ -18,7 +18,7 @@ The current Next.js 16 App Router UI is intentionally minimal and unauthenticate
 - **Home (`src/app/page.tsx`):** static marketing-style page centring the app name, description, and key endpoints. Tailwind CSS v4 utilities are used inline via class names; there are no client components or stateful hooks.
 - **Layout (`src/app/layout.tsx`):** wraps children with Geist Sans/Mono fonts and `antialiased` body class. Language is set to `en` to support Telegram operator usage.
 - **Styling (`src/app/globals.css`):** imports Tailwind v4 (`@import "tailwindcss"`), defines light/dark CSS variables, applies a sans fallback (`Arial`). No custom Tailwind config file beyond default PostCSS plugin.
-- **Logged area:** not implemented. There are no authenticated routes, dashboards, or TRPC-powered UIs; any “logged-area” work would be net new.
+- **Admin dashboard (`/admin/dashboard`):** server component que lê métricas da execução (`agent:news:last_run`, `agent:news:runs`). Protegido por token via query string (`?token=<ADMIN_DASHBOARD_TOKEN>`); não possui estado cliente nem mutações.
 - **Implications for contributors:** Frontend changes currently require building new route groups and components from scratch. Maintain Tailwind utility patterns, respect the existing minimal aesthetic, and ensure any admin UI remains behind authentication if implemented.
 
 ---
@@ -58,6 +58,13 @@ Trigger.dev Scheduled Task (newsOrchestratorTask)
           ▼
 Telegram channel + Upstash persistence
 ```
+
+Multi-canal: `CHANNELS` em `src/config/channels.ts` descreve cada rota de distribuição (chatId, tópicos extras, thresholds, filtros e feature flags). O orchestrator itera por esses canais, aplicando overrides por canal e registrando métricas individuais em `orchestrator.complete.channels`.
+
+Monitoramento e alertas:
+- **Trigger.dev – `newsDailyReportTask`** (`trigger/monitoring.task.ts`): roda em dias úteis às 20h BRT, agrega as últimas execuções (`agent:news:runs`), sintetiza métricas por canal e envia um relatório HTML para `TELEGRAM_ADMIN_CHAT_ID`.
+- **Alertas ad-hoc**: o orchestrator acompanha streak de runs sem envio (`agent:news:zero_send_streak`) e falhas por canal; ao atingir 3 execuções sem envio ou detectar erros, notifica automaticamente o chat admin via Telegram.
+- **Admin Dashboard** (`src/app/admin/dashboard/page.tsx`): página server-side com token único (`?token=`) que lê `agent:news:last_run` + histórico recente e exibe tabela de canais, métricas de duração e status de runs. Serve como console rápido para operadores sem depender do Trigger.dev.
 
 Key runtime characteristics:
 - **Orchestrator**: ~2-3 minutes execution (discovery dominates), runs hourly during business hours
@@ -114,10 +121,11 @@ Telegram channel + Upstash persistence
 ## 4. Pipeline Stage Reference
 
 ### 4.1 Discovery (`src/server/agent/stages/discovery.ts`)
-- Uses OpenAI Responses API (`gpt-5-mini`) with `web_search` tool and São Paulo geolocation.
-- Topics hard-coded (`SEARCH_TOPICS`); domains filtered by `DOMAIN_WHITELIST`.
-- Two-step flow: `generateText` collects prose, `generateObject` normalises to `{ id, url, title, summary, publishedAt, source }`.
-- Outputs `DiscoveryNewsItem[]`; invalid items (missing whitelist domain, schema failures) are skipped with warnings.
+- Usa OpenAI Responses API (`gpt-5-mini`) com `web_search` geolocalizado para São Paulo.
+- Conjunto base de tópicos fixos (`BASE_SEARCH_TOPICS`) e slot dinâmico via `DISCOVERY_DYNAMIC_TOPIC` (lista separada por vírgulas/linhas).
+- Domínios filtrados por `DOMAIN_WHITELIST`; instruções do prompt reforçam allowlist e frescor (12-24h).
+- `generateText` coleta o texto bruto; `generateObject` normaliza em `{ id, url, title, summary, publishedAt, source }`.
+- Itens com domínio fora da whitelist ou erro de schema são descartados com log.
 
 ### 4.2 Prefilter (`prefilter.ts`)
 - Heuristics before expensive LLM calls:
@@ -136,15 +144,17 @@ Telegram channel + Upstash persistence
 - Filters by `RELEVANCE_THRESHOLD` (default 7) and `MAX_NEWS_PER_RUN` (default 10); both configurable via env.
 
 ### 4.4 Deduplication (`dedup.ts`)
-- Queries Upstash Search index with title; `reranking: true`.
-- Flags duplicates when score ≥ `DEDUP_SIMILARITY_THRESHOLD` (default 0.9).
-- On search failures, item proceeds (fail-open) but error is logged.
+- Consulta Upstash Search pelo título (`reranking: true`) e aplica dois critérios:
+  - Similaridade semântica do índice: `score >= DEDUP_SIMILARITY_THRESHOLD` (padrão 0.9).
+  - Fingerprint lexical (SimHash 64 bits) calculado sobre `normalizedTitle + body` e comparado com `metadata.bodyFingerprint`; duplica quando distância de Hamming ≤ `DEDUP_SIMHASH_DISTANCE_THRESHOLD` (padrão 12).
+- Se a busca falhar, o item segue (fail-open) mas o erro é logado; matches por fingerprint registram `stage.dedup.simhash_match`.
 
 ### 4.5 Summarisation (`summarize.ts`)
 - Generates structured output using `buildSummarizePrompt` (Portuguese instructions, zero-indexed citations reminder).
 - Validates citations via `validateCitations` ensuring every bullet has at least one citation and indices are valid.
 - Normalises tags: trims, removes `#`, forces uppercase, ensures ticker regex match.
 - Failures are counted; pipeline continues without the failed item.
+- Quando `ENABLE_ANALYSIS_COMMENTARY=true`, resultado estruturado é repassado ao estágio `commentary.ts` para geração de insight automatizado (máx. 260 caracteres, 2 frases).
 
 ### 4.6 Format (`format.ts`)
 - Delegates to `buildTelegramMessage` to produce HTML message capped at Telegram’s 4096-char limit.
@@ -154,6 +164,8 @@ Telegram channel + Upstash persistence
 - Calls Telegram `sendMessage` with HTML parse mode and link preview disabled.
 - Retries up to 2 times with exponential backoff via `p-retry`.
 - Records successes/failures as `StoredNewsRecord`; failures retain content for retry endpoint.
+- Se existir comentário gerado e flag ativa, aguarda `ANALYSIS_COMMENTARY_DELAY_SECONDS` (default 7s) e envia segunda mensagem: `🤖💬 <b>Comentário</b>` + texto + `<i>(análise automatizada)</i>`. Falhas no comentário não bloqueiam o fluxo factual.
+- Quando `ENABLE_CHARTIMG=true` e o impacto ≥ média, tenta enviar `sendPhoto` com gráfico Chart-IMG para o primeiro ticker (`BMFBOVESPA:<ticker>`). Respeita cache Redis (10 min) e limite horário (`CHARTIMG_MAX_CALLS_PER_HOUR`).
 
 ### 4.8 Persist (`persist.ts`)
 - Persists records under `sent_news:{newsId}` in Redis.
@@ -163,10 +175,14 @@ Telegram channel + Upstash persistence
 
 ## 5. Supporting Services & Utilities
 - **Environment loader:** `src/config/env.ts` merges UPSTASH legacy keys, validates using Zod, caches results. Numeric helpers provided via `getNumericEnv`.
+- **Channel config:** `src/config/channels.ts` lista canais ativos (chatId, tópicos extras, thresholds, filtros e flags).
 - **Locks:** `src/server/lib/lock.ts` uses Redis `SET NX` with UUID token to guard cron concurrency.
 - **Logging:** `src/server/lib/logger.ts` outputs JSON to stdout (`level`, `message`, `timestamp`, meta).
 - **Hashing:** `src/server/lib/hash.ts` provides URL canonicalisation and deterministic ID generation.
 - **Telegram client:** `src/server/services/telegram/client.ts` wraps fetch with schema validation, `p-retry`, and defaults to environment chat ID getter.
+- **Chart-IMG wrapper:** `src/server/services/market/chartImg.ts` consulta API v1 (`advanced-chart/storage`), aplica cache Redis (10 min) e control de quota (`CHARTIMG_MAX_CALLS_PER_HOUR`).
+- **Monitoring store:** `trigger/orchestrator.task.ts` grava métricas compactadas em `agent:news:runs` (lista circular) e `agent:news:last_run`; `newsDailyReportTask` consome esses dados para relatórios.
+- **Admin dashboard server component:** `src/app/admin/dashboard/page.tsx` carrega métricas direto do Redis e renderiza tabelas responsivas; exige query param `token=<ADMIN_DASHBOARD_TOKEN>` para acesso.
 - **Storage connectors:** `redis.ts` and `search.ts` lazily instantiate Upstash clients; both rely on env loader.
 - **AI gateway helpers:** `src/server/services/ai/gateway.ts` centralises `generateText`/`generateObject` for consistent OpenAI usage.
 
@@ -242,6 +258,17 @@ CRON_SECRET=…                      # Optional bearer token for legacy cron/adm
 MAX_NEWS_PER_RUN=10                # Optional override
 RELEVANCE_THRESHOLD=7              # Optional override
 DEDUP_SIMILARITY_THRESHOLD=0.9     # Optional override
+DEDUP_SIMHASH_DISTANCE_THRESHOLD=12 # Optional override (Hamming distance)
+DISCOVERY_DYNAMIC_TOPIC=...        # Optional (comma/newline separated topics)
+ENABLE_ANALYSIS_COMMENTARY=false   # Feature flag comentário automatizado
+ANALYSIS_COMMENTARY_DELAY_SECONDS=7 # Delay entre notícia e comentário
+ENABLE_CHARTIMG=false              # Feature flag para envio de gráficos
+CHARTIMG_DEFAULT_RANGE=1M          # Range padrão (ex.: 1M, 3M, 6M)
+CHARTIMG_DEFAULT_INTERVAL=1D       # Intervalo padrão (ex.: 1D, 4H)
+CHARTIMG_DEFAULT_THEME=light       # light | dark
+CHARTIMG_EXCHANGE=BMFBOVESPA       # Prefixo de exchange para símbolos TradingView
+CHARTIMG_MAX_CALLS_PER_HOUR=10     # Limite de chamadas sem cache
+CHARTIMG_SECRET_KEY=...            # Required ao habilitar gráficos Chart-IMG
 NODE_ENV=production                # Set by platform
 ```
 
@@ -321,6 +348,11 @@ npm run trigger:dev
 - Sender tasks stuck: Check queue status, concurrency limits
 - High costs: Review machine sizes, task durations, optimize discovery
 
+**Relatórios & alertas automatizados:**
+- `newsDailyReportTask` (Trigger.dev) agrega as últimas 24h de runs e envia resumo para `TELEGRAM_ADMIN_CHAT_ID` — valide o chat ID e o token antes do deploy.
+- O orchestrator incrementa `agent:news:zero_send_streak`; ao atingir 3 runs consecutivas sem envio, dispara alerta para o mesmo canal admin acompanhando o motivo (status por canal).
+- Logs incluem `channelId`, `hasCommentary`, `chartImgStatus`; monitore-os via dashboard do Trigger.dev ou admin dashboard.
+
 ### 8.5 Legacy Lock & Concurrency Handling _(deprecated)_
 - The legacy orchestrator used Redis distributed locks (`cron:news:lock`)
 - Trigger.dev tasks have built-in concurrency control via queues
@@ -364,6 +396,8 @@ npm run trigger:dev
   - `npm run smoke:ai` → `scripts/llm-smoke.ts`: validates OpenAI connectivity and web-search tool usage.
   - `npm run test:discovery` → `scripts/test-discovery.ts`: ad-hoc inspection of discovery output.
   - `npm run test:e2e` → `scripts/smoke-e2e.ts`: full pipeline dry run with mocked send/persist (no external side effects).
+  - `node --import=tsx --import=dotenv/config scripts/smoke-commentary.ts`: valida geração de comentário automatizado (limite ≤ 260 caracteres).
+  - `node --import=tsx --import=dotenv/config scripts/smoke-chartimg.ts`: valida integração Chart-IMG (cache Redis + quota horária).
 
 ### 9.3 Testing Expectations for Contributors
 1. Run `npx tsc --noEmit`.
@@ -382,6 +416,7 @@ npm run trigger:dev
 - **Telemetry and logging:** preserve JSON log format; include high-signal keys when adding new logs.
 - **Configuration hygiene:** default values belong in code (`DEFAULT_*` constants); actual overrides live in environment variables.
 - **Deployment safety:** never remove Bearer auth checks from cron/admin endpoints; require `CRON_SECRET` in production environments.
+- **Comentário automatizado:** mantenha prompts sem disclaimers/emoji extras; o formatter adiciona `🤖💬` e `(análise automatizada)` automaticamente, e falhas no comentário não devem bloquear o envio factual.
 
 ---
 
@@ -391,8 +426,8 @@ npm run trigger:dev
 3. **Fact checking agent:** add a verification stage that cross-validates bullets against source context to minimise hallucinations.
 4. **Locks & idempotency:** persist short-lived `idempotency:{fingerprint}` keys to stop duplicate Telegram sends during retries.
 5. **Hardcoded prompts/models:** externalise model selection and prompt templates via configuration for rapid experimentation.
-6. **Admin experience:** build authenticated dashboard for recent sends, failures, and manual triggers (no UI exists today).
-7. **Alerting:** add webhook or Telegram admin notifications when `sentCount === 0` for >3 consecutive runs or when send failures exceed threshold.
+6. **Admin experience:** evoluir o dashboard tokenizado para uma experiência autenticada (login real, filtros por canal, ações de retry manual) e adicionar gráficos históricos.
+7. **Alerting:** expandir alerta atual (zero send + falhas consecutivas) com painel de SLA, integração PagerDuty/e-mail e thresholds configuráveis por canal.
 8. **Embedding index drift:** if embedding model changes, schedule reindex job; current plan assumes `text-embedding-3-small` (1536 dims) though not yet wired.
 
 ---
@@ -400,6 +435,9 @@ npm run trigger:dev
 ## 12. File & Module Map
 ```
 src/
+  config/
+    env.ts                   # Zod loader + numeric helpers
+    channels.ts              # Canalização multi-config (chatId, thresholds, filtros, flags)
   app/
     page.tsx                   # Static home page listing endpoints
     layout.tsx                 # Root layout & fonts
@@ -415,6 +453,7 @@ src/
       ai/                      # Prompt builders + OpenAI gateway
       storage/                 # Redis & Upstash Search connectors
       telegram/                # Client + formatter
+      market/                  # Integrações de mercado (Chart-IMG)
   types/                       # Shared Zod schemas
 
 trigger/                       # Trigger.dev tasks (v4)
@@ -422,6 +461,7 @@ trigger/                       # Trigger.dev tasks (v4)
   types.ts                     # Task payload schemas
   orchestrator.task.ts         # Scheduled orchestrator (discovery → dedup)
   sender.task.ts               # Queue-based sender (summarize → send)
+  monitoring.task.ts           # Relatório diário (20h BRT) para canal admin
 
 trigger.config.ts              # Trigger.dev configuration
 scripts/                       # Smoke & debug scripts
@@ -460,5 +500,6 @@ npm run trigger:deploy --env staging  # Deploy to staging
 ---
 
 ## 14. Change Log
+- **03 Nov 2025 (Late Night):** Concluído plano Tier S estágios 4-6 — multicanal parametrizado (`config/channels.ts`), alertas/relatório diário (`newsDailyReportTask`), admin dashboard protegido por token e smoke tests dedicados (Chart-IMG, commentary). Integração com Chart-IMG habilitada via feature flag com cache/quota; documentação operacional expandida (monitoring runbook).
 - **03 Nov 2025 (Evening):** Migrated from Vercel Cron to Trigger.dev v4. Split orchestrator into two tasks: scheduled orchestrator (discovery→dedup) and queue-based sender (summarize→send) with 2-5 min delays. Solves timezone issues and improves UX by delivering news sequentially. Added `trigger/` directory, `trigger.config.ts`, and deployment guide.
 - **03 Nov 2025 (Morning):** Consolidated Portuguese guides into this English handbook; captured current UI state (no authenticated area) and reiterated pipeline/tuning backlog.

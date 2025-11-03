@@ -1,4 +1,8 @@
-import type { DiscoveryNewsItem, PrefilteredNewsItem } from "@/types/news";
+import type {
+  DiscoveryNewsItem,
+  PrefilteredNewsItem,
+  StructuredNewsItem,
+} from "@/types/news";
 
 export function buildDiscoveryPrompt(
   queries: string[],
@@ -87,5 +91,32 @@ Published At: ${news.publishedAt}
 URL: ${news.url}
 Body:
 ${news.body.slice(0, 4000)}
+`.trim();
+}
+
+export function buildCommentaryPrompt(news: StructuredNewsItem) {
+  const bullets = news.bullets
+    .map((bullet, index) => `- Bullet ${index + 1}: ${bullet}`)
+    .join("\n");
+
+  return `
+Você é um analista de mercado brasileiro escrevendo observações rápidas para um canal de Telegram após o envio de uma notícia factual.
+
+Objetivo: gerar um comentário curto (máximo 2 frases, ≤ 260 caracteres) em português, tom conversacional-profissional, destacando contexto, impacto ou próximos passos.
+
+Regras obrigatórias:
+- NÃO repita o título ou bullets literalmente; agregue insight.
+- NÃO invente dados além do que está nos bullets ou no resumo.
+- NÃO inclua citações, hashtags ou emojis novos.
+- NÃO adicione disclaimers como "análise automatizada" (serão inseridos depois).
+- Mantenha neutralidade: nada de recomendações de compra/venda.
+
+Use as informações abaixo:
+Título final: ${news.finalTitle}
+Resumo: ${news.summary}
+Bullets:
+${bullets}
+
+Retorne apenas um campo JSON: { "commentary": "texto" }.
 `.trim();
 }

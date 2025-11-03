@@ -11,6 +11,18 @@ export type TelegramSendMessagePayload = z.infer<
   typeof telegramSendMessagePayloadSchema
 >;
 
+export const telegramSendPhotoPayloadSchema = z.object({
+  chat_id: z.union([z.number(), z.string()]),
+  photo: z.string().url(),
+  caption: z.string().optional(),
+  parse_mode: z.literal("HTML").optional(),
+  disable_notification: z.boolean().optional(),
+});
+
+export type TelegramSendPhotoPayload = z.infer<
+  typeof telegramSendPhotoPayloadSchema
+>;
+
 export const telegramMessageSchema = z.object({
   message_id: z.number().int().positive(),
   date: z.number().int(),
@@ -33,3 +45,7 @@ export const telegramSendMessageResponseSchema = z.object({
 export type TelegramSendMessageResponse = z.infer<
   typeof telegramSendMessageResponseSchema
 >;
+
+export const telegramSendPhotoResponseSchema = telegramSendMessageResponseSchema;
+
+export type TelegramSendPhotoResponse = TelegramSendMessageResponse;

@@ -34,17 +34,19 @@ export type RerankResult = {
 
 export async function runRerankStage(
   prefiltered: PrefilteredNewsItem[],
+  options?: {
+    maxNewsPerRun?: number;
+    relevanceThreshold?: number;
+  },
 ): Promise<RerankResult> {
   logger.info("stage.rerank.start", { total: prefiltered.length });
   const env = loadEnv();
-  const maxNewsPerRun = getNumericEnv(
-    env.MAX_NEWS_PER_RUN,
-    DEFAULT_MAX_NEWS,
-  );
-  const relevanceThreshold = getNumericEnv(
-    env.RELEVANCE_THRESHOLD,
-    DEFAULT_THRESHOLD,
-  );
+  const maxNewsPerRun =
+    options?.maxNewsPerRun ??
+    getNumericEnv(env.MAX_NEWS_PER_RUN, DEFAULT_MAX_NEWS);
+  const relevanceThreshold =
+    options?.relevanceThreshold ??
+    getNumericEnv(env.RELEVANCE_THRESHOLD, DEFAULT_THRESHOLD);
 
   if (prefiltered.length === 0) {
     return { items: [], skipped: 0 };
