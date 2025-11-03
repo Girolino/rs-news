@@ -137,7 +137,7 @@ src/
 
 npm run trigger:deploy -- --env prod
 
-git add .; git commit -m '  v0.01.12 feat: monitoring & admin dash'; git push origin main
+git add .; git commit -m '  v0.01.13 chore: bump new env'; git push origin main
 git reset --hard; git clean -fd; git checkout dev-branch; git pull origin dev-branch
 git reset --hard c2366a1
 git push --force origin dev-branch

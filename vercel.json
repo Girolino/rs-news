@@ -1,12 +1,4 @@
 {
-  "_comment": "Vercel cron desativado - agora usando Trigger.dev scheduled tasks",
-  "_crons_disabled": [
-    {
-      "path": "/api/cron/news-agent",
-      "schedule": "0 6-20 * * 1-5",
-      "timezone": "America/Sao_Paulo"
-    }
-  ],
   "functions": {
     "src/app/api/cron/news-agent/route.ts": {
       "maxDuration": 800
